@@ -1,0 +1,133 @@
+# Patterns are intentionally non-anchored so they match at any depth. This works
+# whether the app lives at the repo root or is split into backend/ and frontend/.
+
+# ---------------------------------------------------------------------------
+# Secrets and local environment
+# ---------------------------------------------------------------------------
+# Commit .env.example (tracked below) so required variables stay documented.
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+
+# ---------------------------------------------------------------------------
+# Python / FastAPI
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Packaging / build
+build/
+dist/
+sdist/
+wheels/
+*.egg-info/
+*.egg
+.eggs/
+MANIFEST
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+.ruff_cache/
+.tox/
+.nox/
+.hypothesis/
+.ipynb_checkpoints/
+cython_debug/
+
+# Coverage
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+nosetests.xml
+*.cover
+
+# Local databases (Alembic migration scripts should stay tracked)
+*.db
+*.sqlite
+*.sqlite3
+
+# ---------------------------------------------------------------------------
+# Node / Next.js
+# ---------------------------------------------------------------------------
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+!.yarn/plugins
+!.yarn/versions
+
+# Next.js build output
+.next/
+out/
+.swc/
+
+# Bundler / framework caches
+.turbo/
+.parcel-cache/
+.cache/
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Test output
+coverage/
+playwright-report/
+test-results/
+.nyc_output/
+
+# Deployment
+.vercel/
+
+# Package manager debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+
+# ---------------------------------------------------------------------------
+# Logs and runtime files
+# ---------------------------------------------------------------------------
+*.log
+logs/
+pids/
+*.pid
+*.seed
+
+# ---------------------------------------------------------------------------
+# Editors and OS
+# ---------------------------------------------------------------------------
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ---------------------------------------------------------------------------
+# Tooling
+# ---------------------------------------------------------------------------
+# Shared Claude Code project settings stay tracked; personal overrides do not.
+.claude/settings.local.json
