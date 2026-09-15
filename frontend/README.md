@@ -20,6 +20,8 @@ npm run dev     # http://localhost:3000
 | `npm run build` | Production build (regenerates template data first) |
 | `npm run generate:template` | Re-parse `../templates` into `src/lib/nda-template.generated.ts` |
 | `npm run lint` | ESLint |
+| `npm test` | Vitest, once |
+| `npm run test:watch` | Vitest, watching |
 
 Everything runs in the browser. Nothing the user types is sent anywhere, and
 there is no backend or database.
@@ -80,6 +82,39 @@ There is no PDF library. `globals.css` reduces the page to the document under
 `@media print` — hiding the header, form and toolbar, setting `@page` margins,
 and controlling pagination — so the browser's own "Save as PDF" is the
 generator. The **Download PDF** button just calls `window.print()`.
+
+## Tests
+
+```bash
+npm test
+```
+
+| Path | What it covers |
+| --- | --- |
+| `test/nda-fields.test.ts` | Date formatting, year validation, completeness checking |
+| `test/substitutions.test.ts` | Every substitution point, filled and unfilled, in both wordings |
+| `test/standard-terms.test.ts` | Occurrence numbering, so a defined term expands exactly once |
+| `test/markdown-export.test.ts` | Export structure, markdown escaping, filenames, full-document snapshots |
+| `test/components/` | The form, the document, the download bar, and the page wiring them together |
+| `test/parity.test.tsx` | The on-screen document and the `.md` export agree, case by case |
+
+The pure-logic suites run in Vitest's `node` environment; component suites opt
+into jsdom with a `@vitest-environment jsdom` docblock, which keeps the fast
+suites fast.
+
+`test/parity.test.tsx` is the one worth understanding: `NdaDocument.tsx` and
+`markdown-export.ts` are two independent renderers over the same template data,
+and nothing but these tests stops one from drifting from the other.
+
+### What tests cannot cover here
+
+The PDF is produced by the browser's print engine, so pagination, `@page`
+margins and how the print stylesheet actually lands on Letter or A4 are only
+verifiable by printing the page in a real browser. Treat a change to the
+`@media print` block in `globals.css` as needing a manual print-preview check.
+
+[`test/MANUAL.md`](test/MANUAL.md) is the checklist for that, plus real
+downloads, keyboard access and cross-browser printing.
 
 ## Licence
 
