@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "attribution": "Agreement templates © Common Paper, licensed under CC BY 4.0.",
+  "documents": [
+    {
+      "id": "mutual-nda",
+      "name": "Mutual NDA",
+      "abbreviation": "NDA",
+      "summary": "Both sides share confidential information and both are bound to protect it.",
+      "use_when": "You are about to discuss something sensitive with another company — a partnership, an acquisition, a technical evaluation — before any commercial agreement exists.",
+      "standard_terms": "templates/mutual-nda.md",
+      "cover_page": "templates/mutual-nda-cover-page.md",
+      "attaches_to": null,
+      "available": true
+    },
+    {
+      "id": "cloud-service-agreement",
+      "name": "Cloud Service Agreement",
+      "abbreviation": "CSA",
+      "summary": "The primary contract for selling a hosted software service to a business customer.",
+      "use_when": "You sell SaaS and need the master agreement that everything else — SLA, DPA, AI Addendum — attaches to.",
+      "standard_terms": "templates/cloud-service-agreement.md",
+      "cover_page": null,
+      "attaches_to": null,
+      "available": false
+    },
+    {
+      "id": "software-license-agreement",
+      "name": "Software License Agreement",
+      "abbreviation": null,
+      "summary": "Licenses software the customer runs themselves rather than a service you host.",
+      "use_when": "The customer installs or self-hosts your software, so a cloud service agreement does not fit.",
+      "standard_terms": "templates/software-license-agreement.md",
+      "cover_page": null,
+      "attaches_to": null,
+      "available": false
+    },
+    {
+      "id": "professional-services-agreement",
+      "name": "Professional Services Agreement",
+      "abbreviation": "PSA",
+      "summary": "Covers consulting, implementation or other services delivered against a statement of work.",
+      "use_when": "You are being paid for work rather than for a product, with the specifics defined per-SOW.",
+      "standard_terms": "templates/professional-services-agreement.md",
+      "cover_page": null,
+      "attaches_to": null,
+      "available": false
+    },
+    {
+      "id": "pilot-agreement",
+      "name": "Pilot Agreement",
+      "abbreviation": null,
+      "summary": "A time-boxed paid trial with a defined success test and a path into a full agreement.",
+      "use_when": "A prospect wants to prove the product works before committing to an annual contract.",
+      "standard_terms": "templates/pilot-agreement.md",
+      "cover_page": null,
+      "attaches_to": null,
+      "available": false
+    },
+    {
+      "id": "design-partner-agreement",
+      "name": "Design Partner Agreement",
+      "abbreviation": null,
+      "summary": "Terms for an early customer who shapes a product still being built, usually in exchange for access.",
+      "use_when": "You are co-developing with a first customer and need feedback, IP and confidentiality settled.",
+      "standard_terms": "templates/design-partner-agreement.md",
+      "cover_page": null,
+      "attaches_to": null,
+      "available": false
+    },
+    {
+      "id": "partnership-agreement",
+      "name": "Partnership Agreement",
+      "abbreviation": null,
+      "summary": "Governs a referral or reseller relationship, including who owns the customer and how fees are split.",
+      "use_when": "Another company will refer or resell your product and the commercial terms need writing down.",
+      "standard_terms": "templates/partnership-agreement.md",
+      "cover_page": null,
+      "attaches_to": null,
+      "available": false
+    },
+    {
+      "id": "service-level-agreement",
+      "name": "Service Level Agreement",
+      "abbreviation": "SLA",
+      "summary": "Uptime commitments, support response times, and the credits owed when they are missed.",
+      "use_when": "A customer needs a contractual availability guarantee alongside the main agreement.",
+      "standard_terms": "templates/service-level-agreement.md",
+      "cover_page": null,
+      "attaches_to": "cloud-service-agreement",
+      "available": false
+    },
+    {
+      "id": "data-processing-agreement",
+      "name": "Data Processing Agreement",
+      "abbreviation": "DPA",
+      "summary": "The GDPR-required terms for processing personal data on a customer's behalf.",
+      "use_when": "Your service handles personal data belonging to a customer's users or employees.",
+      "standard_terms": "templates/data-processing-agreement.md",
+      "cover_page": null,
+      "attaches_to": "cloud-service-agreement",
+      "available": false
+    },
+    {
+      "id": "business-associate-agreement",
+      "name": "Business Associate Agreement",
+      "abbreviation": "BAA",
+      "summary": "The HIPAA terms required when a vendor handles protected health information.",
+      "use_when": "Your customer is a healthcare entity and your service touches patient data.",
+      "standard_terms": "templates/business-associate-agreement.md",
+      "cover_page": null,
+      "attaches_to": "cloud-service-agreement",
+      "available": false
+    },
+    {
+      "id": "ai-addendum",
+      "name": "AI Addendum",
+      "abbreviation": null,
+      "summary": "Settles how AI features may be used, what may be trained on, and who owns the output.",
+      "use_when": "Your product includes AI features and the base agreement predates them or is silent on them.",
+      "standard_terms": "templates/ai-addendum.md",
+      "cover_page": null,
+      "attaches_to": "cloud-service-agreement",
+      "available": false
+    }
+  ]
+}

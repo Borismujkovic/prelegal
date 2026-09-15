@@ -1,7 +1,7 @@
 # Prelegal frontend
 
 A Next.js app for drafting agreements from the templates in
-[`../templates`](../templates). It currently implements one: the
+[`../templates`](../templates). It implements one so far: the
 **Mutual NDA** ([PL-3](https://borismujkovic.atlassian.net/browse/PL-3)).
 
 Fill in the cover page, watch the agreement fill in beside it, and download the
@@ -9,10 +9,37 @@ result.
 
 ## Running it
 
+Normally you run the whole stack — see [`../scripts`](../scripts), which serves
+this app from FastAPI at http://localhost:8000. For frontend work alone:
+
 ```bash
 npm install
 npm run dev     # http://localhost:3000
 ```
+
+`npm run dev` has no backend behind it, so the dashboard and sign-in cannot
+reach `/api`. The Mutual NDA creator works regardless — it never talks to a
+server.
+
+## Routes
+
+| Route | What it is |
+| --- | --- |
+| `/` | Redirect: to `/documents` when signed in, `/login` otherwise |
+| `/login` | Placeholder sign-in. No password, no security — see below |
+| `/documents` | Dashboard, listing everything in `../catalog.json` |
+| `/documents/mutual-nda` | The creator |
+
+### It is a static export
+
+`next.config.ts` sets `output: "export"`, so `npm run build` emits plain
+HTML/CSS/JS into `out/` and FastAPI serves it. That rules out server-side
+features by design — no Server Actions, no Route Handlers reading a request, no
+server-side redirects. Anything needing a server belongs in the backend under
+`/api`.
+
+It also means the route guard, the `/` redirect and the sign-in state are all
+client-side. None of it is a security boundary.
 
 | Script | What it does |
 | --- | --- |
@@ -23,8 +50,9 @@ npm run dev     # http://localhost:3000
 | `npm test` | Vitest, once |
 | `npm run test:watch` | Vitest, watching |
 
-Everything runs in the browser. Nothing the user types is sent anywhere, and
-there is no backend or database.
+Nothing typed into an agreement is sent anywhere — the creator runs entirely in
+the browser. The only thing that reaches the backend is the email typed into the
+placeholder sign-in.
 
 ## How the agreement text gets here
 
@@ -62,6 +90,10 @@ handled rather than silently rendering a gap.
 | `src/components/NdaDocument.tsx` | The rendered agreement (also what prints) |
 | `src/components/CoverPageForm.tsx` | The form |
 | `src/components/DownloadBar.tsx` | Completeness indicator and download actions |
+| `src/lib/session.ts` | The placeholder sign-in, and its localStorage |
+| `src/lib/catalog.ts` | Catalog types and fetching |
+| `src/components/SessionProvider.tsx` | Reads the stored session via `useSyncExternalStore` |
+| `src/app/documents/layout.tsx` | The signed-in shell, and the client-side route guard |
 
 ### Two ways a value gets substituted
 
@@ -95,7 +127,9 @@ npm test
 | `test/substitutions.test.ts` | Every substitution point, filled and unfilled, in both wordings |
 | `test/standard-terms.test.ts` | Occurrence numbering, so a defined term expands exactly once |
 | `test/markdown-export.test.ts` | Export structure, markdown escaping, filenames, full-document snapshots |
-| `test/components/` | The form, the document, the download bar, and the page wiring them together |
+| `test/session.test.ts` | Session storage, its failure modes, and change notification |
+| `test/catalog.test.ts` | The shipped `catalog.json`, including that every template path exists |
+| `test/components/` | The form, the document, the download bar, the shell, login, dashboard, and the page wiring them together |
 | `test/parity.test.tsx` | The on-screen document and the `.md` export agree, case by case |
 
 The pure-logic suites run in Vitest's `node` environment; component suites opt

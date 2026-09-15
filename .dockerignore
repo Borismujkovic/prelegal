@@ -1,0 +1,18 @@
+# Never ship secrets.
+.env
+.env.*
+
+# Build output and dependencies are produced inside the image.
+**/node_modules
+**/.next
+**/out
+**/__pycache__
+**/.venv
+**/.pytest_cache
+**/*.db
+
+.git
+.github
+.claude
+pm
+**/.DS_Store

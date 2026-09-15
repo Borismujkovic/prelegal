@@ -10,16 +10,96 @@ This project is under active development. The target completion date is
 **21 September 2026** (one week from 14 September 2026).
 
 Until then, the project structure, APIs, and documentation are expected to
-change. Installation, usage, and configuration instructions will be added as
-the codebase lands — see #1.
+change. See #1.
+
+> **There is no authentication.** The sign-in screen is a placeholder: any email
+> address gets you in, no password is asked for, and nothing is verified. Do not
+> put real confidential information into this yet.
+
+## Running it
+
+Docker is the only prerequisite.
+
+```bash
+# Mac
+scripts/start-mac.sh
+scripts/stop-mac.sh
+
+# Linux
+scripts/start-linux.sh
+scripts/stop-linux.sh
+
+# Windows
+scripts/start-windows.ps1
+scripts/stop-windows.ps1
+```
+
+Then open **http://localhost:8000**. Interactive API docs are at
+[`/docs`](http://localhost:8000/docs).
+
+If something else on your machine already holds port 8000, set `PRELEGAL_PORT`
+to move it:
+
+```bash
+PRELEGAL_PORT=8001 scripts/start-linux.sh
+```
+
+### Configuration
+
+Copy `.env.example` to `.env` and fill in `OPENROUTER_API_KEY`. Nothing reads it
+yet — it is passed to the container ready for the AI chat. `.env` is gitignored.
 
 ## Layout
 
 | Directory | What it holds |
 | --- | --- |
 | [`templates/`](templates) | The agreement dataset: verbatim Common Paper templates, CC BY 4.0 |
-| [`frontend/`](frontend) | Next.js app for drafting agreements from those templates |
+| [`catalog.json`](catalog.json) | What Prelegal can draft, and which templates back each one |
+| [`backend/`](backend) | FastAPI app: the API, and it serves the built frontend |
+| [`frontend/`](frontend) | Next.js app, statically exported |
+| [`scripts/`](scripts) | Start and stop, per platform |
 
-The first agreement is live: `frontend/` renders a **Mutual NDA** from a filled-in
-cover page and downloads it as PDF or Markdown. See
-[`frontend/README.md`](frontend/README.md) to run it.
+## How it fits together
+
+One container, one port. The frontend is built to static HTML/CSS/JS at image
+build time and FastAPI serves it, so there is no second process and no CORS.
+
+```
+                     ┌──────────────── container ────────────────┐
+  browser ──:8000──> │  FastAPI                                  │
+                     │    /api/*  ──> SQLite (recreated on boot) │
+                     │    /*      ──> frontend/out (next build)  │
+                     └───────────────────────────────────────────┘
+```
+
+The database is **deliberately disposable**: every table is dropped and
+recreated each time the container starts. Nothing entered in a previous run
+survives, and nothing should be built on the assumption that it does.
+
+## What works today
+
+| | |
+| --- | --- |
+| Placeholder sign-in | Creates a user row from an email. No password, no security. |
+| Document dashboard | All 11 agreements from `catalog.json` |
+| Mutual NDA creator | Fill in a cover page, download as PDF or Markdown |
+
+The other ten agreements are listed but not yet draftable. Common Paper
+publishes a cover page for the Mutual NDA alone, and the cover page is the part
+a user fills in — see [`templates/README.md`](templates/README.md).
+
+## Tests
+
+```bash
+# Frontend
+cd frontend && npm install && npm test
+
+# Backend (needs uv, or run it in the container image)
+cd backend && uv run pytest
+```
+
+## Licence
+
+Generated documents are derivative works of the Common Paper templates, which
+are [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The attribution
+travels with every document and export, and must stay there.

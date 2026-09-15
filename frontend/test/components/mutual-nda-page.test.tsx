@@ -2,29 +2,29 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import Home from "@/app/page";
+import MutualNdaPage from "@/app/documents/mutual-nda/page";
 
 /** The rendered agreement, with whitespace collapsed. */
 function documentText(): string {
   return (document.querySelector("article")?.textContent ?? "").replace(/\s+/g, " ").trim();
 }
 
-describe("the creator page", () => {
+describe("the Mutual NDA creator page", () => {
   it("shows the form and the document side by side", () => {
-    render(<Home />);
+    render(<MutualNdaPage />);
     expect(screen.getByRole("region", { name: "Cover page details" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Agreement preview" })).toBeInTheDocument();
   });
 
   it("starts with every substitution outstanding", () => {
-    render(<Home />);
+    render(<MutualNdaPage />);
     expect(documentText()).toContain("[Purpose]");
     expect(screen.getByRole("button", { name: /8 fields still to fill/ })).toBeInTheDocument();
   });
 
   it("fills the purpose into the document as it is typed", async () => {
     const user = userEvent.setup();
-    render(<Home />);
+    render(<MutualNdaPage />);
 
     await user.type(screen.getByLabelText("Purpose"), "Evaluating a partnership");
 
@@ -35,7 +35,7 @@ describe("the creator page", () => {
 
   it("fills the effective date into the document in long form", async () => {
     const user = userEvent.setup();
-    render(<Home />);
+    render(<MutualNdaPage />);
 
     await user.type(screen.getByLabelText("Effective date"), "2026-03-09");
 
@@ -46,7 +46,7 @@ describe("the creator page", () => {
 
   it("reflects a change of term in the document", async () => {
     const user = userEvent.setup();
-    render(<Home />);
+    render(<MutualNdaPage />);
 
     expect(documentText()).toContain("Expires 1 year from the Effective Date.");
 
@@ -58,7 +58,7 @@ describe("the creator page", () => {
 
   it("carries a party name into the signature block", async () => {
     const user = userEvent.setup();
-    render(<Home />);
+    render(<MutualNdaPage />);
 
     await user.type(screen.getAllByLabelText("Print name")[0], "Jane Doe");
     expect(documentText()).toContain("Jane Doe");
@@ -66,7 +66,7 @@ describe("the creator page", () => {
 
   it("counts down the outstanding fields as they are filled", async () => {
     const user = userEvent.setup();
-    render(<Home />);
+    render(<MutualNdaPage />);
 
     await user.type(screen.getByLabelText("Purpose"), "Evaluating a deal");
     expect(screen.getByRole("button", { name: /7 fields still to fill/ })).toBeInTheDocument();
@@ -77,7 +77,7 @@ describe("the creator page", () => {
 
   it("reports readiness once the cover page is complete", async () => {
     const user = userEvent.setup();
-    render(<Home />);
+    render(<MutualNdaPage />);
 
     await user.type(screen.getByLabelText("Purpose"), "Evaluating a deal");
     await user.type(screen.getByLabelText("Effective date"), "2026-03-09");
@@ -93,7 +93,7 @@ describe("the creator page", () => {
 
   it("keeps the two parties' edits apart", async () => {
     const user = userEvent.setup();
-    render(<Home />);
+    render(<MutualNdaPage />);
 
     await user.type(screen.getAllByLabelText("Company")[0], "Acme");
     await user.type(screen.getAllByLabelText("Company")[1], "Globex");
@@ -102,14 +102,16 @@ describe("the creator page", () => {
     expect(screen.getAllByLabelText("Company")[1]).toHaveValue("Globex");
   });
 
-  it("hides the app chrome from print", () => {
-    const { container } = render(<Home />);
-    const header = container.querySelector("header");
-    expect(header?.className).toContain("print:hidden");
+  // The page header moved to the shell layout; DocumentsLayout.test.tsx keeps
+  // the print:hidden guarantee. What stays here is the page chrome it owns.
+  it("hides the form and download bar from print", () => {
+    const { container } = render(<MutualNdaPage />);
+    const form = container.querySelector("section[aria-label=\"Cover page details\"]");
+    expect(form?.className).toContain("print:hidden");
   });
 
   it("sends nothing anywhere - the form has no action", () => {
-    const { container } = render(<Home />);
+    const { container } = render(<MutualNdaPage />);
     const form = container.querySelector("form");
     expect(form?.getAttribute("action")).toBeNull();
     expect(form?.getAttribute("method")).toBeNull();
