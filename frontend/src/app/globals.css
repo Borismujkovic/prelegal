@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-serif: var(--font-source-serif);
+}
+
+body {
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/*
+ * Print rules turn the app into the document alone: `print:hidden` on the
+ * header, form and toolbar removes the chrome, and these rules handle what
+ * utilities cannot — page margins, colour forcing, and pagination.
+ *
+ * This is the PDF pipeline: the browser's "Save as PDF" is the generator.
+ */
+@media print {
+  @page {
+    size: letter;
+    margin: 18mm 16mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000;
+    /* Printers drop backgrounds by default; the document reads fine without
+       them, so let them go rather than forcing ink. */
+    print-color-adjust: economy;
+  }
+
+  /* Sticky and scroll containers would otherwise clip the document to one
+     viewport's worth of content. */
+  .lg\:sticky,
+  .lg\:overflow-y-auto {
+    position: static !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  article {
+    font-size: 10.5pt;
+    line-height: 1.5;
+  }
+
+  /* Keep headings with the text they introduce, and avoid stranded lines. */
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+
+  p,
+  li {
+    orphans: 3;
+    widows: 3;
+  }
+
+  a {
+    text-decoration: none;
+  }
+}
