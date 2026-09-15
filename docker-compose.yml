@@ -10,8 +10,9 @@ services:
       # if something else on the machine already holds it.
       - "${PRELEGAL_PORT:-8000}:8000"
     environment:
-      # Present so the AI chat can reach OpenRouter once it lands (PL-5+).
-      # Empty when .env is absent, which is fine — nothing reads it yet.
+      # How the Mutual NDA chat authenticates against OpenRouter. Empty when
+      # .env is absent: the app still boots and the cover page can still be
+      # filled in by hand, but the chat endpoint answers 503.
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     # The database lives in the container's own filesystem, not a volume, so it
     # is genuinely recreated from scratch every time the stack comes up.

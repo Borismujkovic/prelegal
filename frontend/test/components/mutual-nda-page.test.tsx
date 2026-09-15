@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MutualNdaPage from "@/app/documents/mutual-nda/page";
@@ -110,10 +110,156 @@ describe("the Mutual NDA creator page", () => {
     expect(form?.className).toContain("print:hidden");
   });
 
-  it("sends nothing anywhere - the form has no action", () => {
+  // The cover page form still submits nowhere. The chat does reach the backend
+  // now, but only through fetch - nothing here navigates or posts a form.
+  it("never submits a form anywhere", () => {
     const { container } = render(<MutualNdaPage />);
-    const form = container.querySelector("form");
-    expect(form?.getAttribute("action")).toBeNull();
-    expect(form?.getAttribute("method")).toBeNull();
+    for (const form of container.querySelectorAll("form")) {
+      expect(form.getAttribute("action")).toBeNull();
+      expect(form.getAttribute("method")).toBeNull();
+    }
+  });
+});
+
+describe("the manual fields disclosure", () => {
+  function disclosure(container: HTMLElement): HTMLDetailsElement | null {
+    return container.querySelector("details");
+  }
+
+  it("starts closed, so the chat is what the page opens with", () => {
+    const { container } = render(<MutualNdaPage />);
+
+    expect(disclosure(container)?.open).toBe(false);
+    expect(container.querySelector("details > summary")).toHaveTextContent(
+      "Edit fields manually",
+    );
+  });
+
+  it("opens to reveal the cover page form", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<MutualNdaPage />);
+
+    await user.click(screen.getByText("Edit fields manually"));
+
+    expect(disclosure(container)?.open).toBe(true);
+    expect(screen.getByLabelText("Purpose")).toBeInTheDocument();
+  });
+});
+
+describe("drafting by chat", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function assistantReplies(reply: string, patch: unknown) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ reply, patch }),
+      }),
+    );
+  }
+
+  async function say(user: ReturnType<typeof userEvent.setup>, text: string) {
+    await user.type(screen.getByLabelText("Message the drafting assistant"), text);
+    await user.click(screen.getByRole("button", { name: "Send" }));
+  }
+
+  it("writes what the assistant established into the document", async () => {
+    assistantReplies("Got it - what date should it start?", {
+      purpose: "Evaluating a partnership",
+      governingLaw: "Delaware",
+    });
+    const user = userEvent.setup();
+    render(<MutualNdaPage />);
+
+    await say(user, "We are evaluating a partnership, under Delaware law.");
+
+    expect(
+      await screen.findByText("Got it - what date should it start?"),
+    ).toBeInTheDocument();
+    const text = documentText();
+    expect(text).toContain("Evaluating a partnership");
+    expect(text).toContain("Delaware");
+    expect(text).not.toContain("[Purpose]");
+  });
+
+  it("carries a term through as the tagged union the document reads", async () => {
+    assistantReplies("Noted.", {
+      ndaTerm: { kind: "untilTerminated" },
+      confidentialityTerm: { kind: "perpetual" },
+    });
+    const user = userEvent.setup();
+    render(<MutualNdaPage />);
+
+    await say(user, "Run it until we terminate, confidentiality forever.");
+
+    await screen.findByText("Noted.");
+    const text = documentText();
+    expect(text).toContain("Continues until terminated");
+    expect(text).toContain("In perpetuity.");
+  });
+
+  it("fills a party without disturbing the other", async () => {
+    assistantReplies("Thanks.", { party1: { company: "Acme, Inc." } });
+    const user = userEvent.setup();
+    render(<MutualNdaPage />);
+
+    await say(user, "We are Acme.");
+
+    await screen.findByText("Thanks.");
+    expect(documentText()).toContain("Acme, Inc.");
+    // Party 2 is untouched, and so is everything else on Party 1.
+    await user.click(screen.getByText("Edit fields manually"));
+    expect(screen.getAllByLabelText("Company")[0]).toHaveValue("Acme, Inc.");
+    expect(screen.getAllByLabelText("Company")[1]).toHaveValue("");
+    expect(screen.getAllByLabelText("Print name")[0]).toHaveValue("");
+  });
+
+  it("counts the answered fields down as the assistant fills them", async () => {
+    assistantReplies("Done.", {
+      purpose: "Evaluating a partnership",
+      effectiveDate: "2026-03-09",
+    });
+    const user = userEvent.setup();
+    render(<MutualNdaPage />);
+
+    expect(screen.getByRole("button", { name: /8 fields still to fill/ })).toBeInTheDocument();
+
+    await say(user, "A partnership, starting the 9th of March 2026.");
+
+    await screen.findByText("Done.");
+    expect(screen.getByRole("button", { name: /6 fields still to fill/ })).toBeInTheDocument();
+  });
+
+  it("leaves the document alone when a turn establishes nothing", async () => {
+    assistantReplies("Governing law is the state whose rules apply. Delaware?", {});
+    const user = userEvent.setup();
+    render(<MutualNdaPage />);
+
+    await say(user, "What does governing law mean?");
+
+    await screen.findByText(/Governing law is the state/);
+    expect(documentText()).toContain("[Purpose]");
+    expect(screen.getByRole("button", { name: /8 fields still to fill/ })).toBeInTheDocument();
+  });
+
+  it("keeps a value typed into the form while a reply was in flight", async () => {
+    assistantReplies("Noted.", { governingLaw: "Delaware" });
+    const user = userEvent.setup();
+    render(<MutualNdaPage />);
+
+    await user.click(screen.getByText("Edit fields manually"));
+    await user.type(screen.getByLabelText("Purpose"), "Evaluating a partnership");
+    await say(user, "Delaware law please.");
+
+    await screen.findByText("Noted.");
+    const text = documentText();
+    // The patch adds the governing law without clearing what was typed.
+    expect(text).toContain("Delaware");
+    expect(text).toContain("Evaluating a partnership");
   });
 });
