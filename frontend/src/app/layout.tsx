@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Source_Serif_4 } from "next/font/google";
+import { SessionProvider } from "@/components/SessionProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,9 +15,8 @@ const sourceSerif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: "Mutual NDA · Prelegal",
-  description:
-    "Fill in a cover page and download a completed Common Paper Mutual Non-Disclosure Agreement.",
+  title: "Prelegal",
+  description: "Draft common legal agreements from Common Paper templates.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -26,7 +26,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${sourceSerif.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-900">
-        {children}
+        <SessionProvider>{children}</SessionProvider>
       </body>
     </html>
   );

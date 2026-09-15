@@ -22,7 +22,7 @@ preview (Ctrl/Cmd-P) and check, **at Letter and again at A4**:
 
 | # | Check | Why it matters |
 | --- | --- | --- |
-| 1.1 | No part of the form, page header or download toolbar appears | They are `print:hidden`; a regression here leaks app chrome into the agreement |
+| 1.1 | No part of the form, shell header (Prelegal / user / Sign out) or download toolbar appears | They are `print:hidden`; a regression here leaks app chrome into the agreement. The header moved to `src/app/documents/layout.tsx` in PL-4, so check it there |
 | 1.2 | The whole agreement is present — scroll to the last page and confirm clause 11 and the closing attribution are there, not truncated | A scroll or sticky container clipping the document would silently cut the contract short |
 | 1.3 | "Standard Terms" starts on a fresh page | `break-before-page` on that section |
 | 1.4 | Neither signature block is split across a page boundary | `break-inside-avoid`; a signature block split in half is not signable |

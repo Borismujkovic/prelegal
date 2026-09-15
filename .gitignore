@@ -1,0 +1,28 @@
+# Secrets — .env holds OPENROUTER_API_KEY and must never be committed.
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Database — recreated from scratch on every boot, never source.
+*.db
+*.sqlite
+*.sqlite3
+data/
+
+# Node / Next.js (frontend/.gitignore covers the rest)
+node_modules/
+.next/
+out/
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+*.swp

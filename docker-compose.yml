@@ -1,0 +1,18 @@
+services:
+  prelegal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: prelegal:local
+    container_name: prelegal
+    ports:
+      # Host port defaults to 8000 per CLAUDE.md. Override with PRELEGAL_PORT
+      # if something else on the machine already holds it.
+      - "${PRELEGAL_PORT:-8000}:8000"
+    environment:
+      # Present so the AI chat can reach OpenRouter once it lands (PL-5+).
+      # Empty when .env is absent, which is fine — nothing reads it yet.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    # The database lives in the container's own filesystem, not a volume, so it
+    # is genuinely recreated from scratch every time the stack comes up.
+    restart: unless-stopped
