@@ -1,0 +1,60 @@
+{
+  "id": "business-associate-agreement",
+  "tier": "Key Terms",
+  "note": "Common Paper publishes no key terms sheet for the BAA. These fields are the substitution points its Standard Terms already name; the labels and hints are ours.",
+  "parties": {
+    "a": { "field": "Provider", "label": "Provider" },
+    "b": { "field": "Company", "label": "Company" }
+  },
+  "derived": [],
+  "sections": [
+    {
+      "title": "The agreement this attaches to",
+      "hint": "A BAA never stands alone. It sits on top of the contract under which the services are already being provided.",
+      "fields": [
+        {
+          "field": "Agreement",
+          "id": "agreement",
+          "type": "text",
+          "label": "Underlying agreement",
+          "hint": "The contract this BAA supplements, named so there is no doubt which one it modifies.",
+          "placeholder": "the Cloud Service Agreement dated 1 March 2026",
+          "optional": false
+        },
+        {
+          "field": "BAA Effective Date",
+          "id": "baaEffectiveDate",
+          "type": "date",
+          "label": "BAA effective date",
+          "hint": "When these HIPAA obligations start. It need not match the underlying agreement's own start date.",
+          "placeholder": "",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "title": "Handling protected health information",
+      "hint": "",
+      "fields": [
+        {
+          "field": "Breach Notification Period",
+          "id": "breachNotificationPeriod",
+          "type": "text",
+          "label": "Breach notification period",
+          "hint": "How quickly the provider must report a use or disclosure of PHI that this BAA does not permit.",
+          "placeholder": "5 business days",
+          "optional": false
+        },
+        {
+          "field": "Limitations",
+          "id": "limitations",
+          "type": "textarea",
+          "label": "Limitations",
+          "hint": "Limits on what the provider may otherwise do with PHI — subcontracting, de-identifying, aggregating, or processing it outside the United States.",
+          "placeholder": "PHI may not be processed outside the United States",
+          "optional": true
+        }
+      ]
+    }
+  ]
+}

@@ -36,9 +36,31 @@ describe("catalog.json", () => {
     }
   });
 
-  it("marks exactly the Mutual NDA as available", () => {
+  it("marks exactly the six draftable documents as available", () => {
     const available = catalog.documents.filter((entry) => entry.available);
-    expect(available.map((entry) => entry.id)).toEqual(["mutual-nda"]);
+    expect(new Set(available.map((entry) => entry.id))).toEqual(
+      new Set([
+        "mutual-nda",
+        "ai-addendum",
+        "business-associate-agreement",
+        "pilot-agreement",
+        "service-level-agreement",
+        "design-partner-agreement",
+      ]),
+    );
+  });
+
+  it("gives every available document something to fill in", () => {
+    // The Mutual NDA points at the cover page Common Paper published. The rest
+    // had none to point at, so their fields come from an overlay of ours.
+    for (const entry of catalog.documents) {
+      if (!entry.available) continue;
+      const overlay = join(REPO_ROOT, "cover-pages", `${entry.id}.json`);
+      expect(
+        Boolean(entry.cover_page) || existsSync(overlay),
+        `${entry.id} has no cover page and no overlay`,
+      ).toBe(true);
+    }
   });
 
   it("keeps the Common Paper attribution", () => {

@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "generate:template": "node scripts/generate-template.mjs",
-    "predev": "npm run generate:template",
+    "generate:documents": "node scripts/generate-documents.mjs",
+    "generate": "npm run generate:template && npm run generate:documents",
+    "predev": "npm run generate",
     "dev": "next dev",
-    "prebuild": "npm run generate:template",
+    "prebuild": "npm run generate",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

@@ -56,16 +56,16 @@ one and print the real URL when the app comes up.
 
 ### Configuration
 
-Copy `.env.example` to `.env` and fill in `OPENROUTER_API_KEY`. The Mutual NDA
-chat needs it; without it the app still runs and the cover page can still be
-filled in by hand, but the assistant replies that it is not configured. `.env`
-is gitignored.
+Copy `.env.example` to `.env` and fill in `OPENROUTER_API_KEY`. The chat needs
+it; without it the app still runs and every document can still be filled in by
+hand, but the assistant replies that it is not configured. `.env` is gitignored.
 
 ## Layout
 
 | Directory | What it holds |
 | --- | --- |
 | [`templates/`](templates) | The agreement dataset: verbatim Common Paper templates, CC BY 4.0 |
+| [`cover-pages/`](cover-pages) | The cover pages Common Paper never published — ours, kept out of `templates/` so that stays verbatim |
 | [`catalog.json`](catalog.json) | What Prelegal can draft, and which templates back each one |
 | [`backend/`](backend) | FastAPI app: the API, and it serves the built frontend |
 | [`frontend/`](frontend) | Next.js app, statically exported |
@@ -94,11 +94,20 @@ survives, and nothing should be built on the assumption that it does.
 | --- | --- |
 | Placeholder sign-in | Creates a user row from an email. No password, no security. |
 | Document dashboard | All 11 agreements from `catalog.json` |
-| Mutual NDA creator | Draft the cover page by chatting with an AI, or type it in by hand; download as PDF or Markdown |
+| "Which one do I need?" | Describe your situation and an assistant recommends an agreement — or says plainly that Prelegal does not draft what you asked for |
+| Six draftable agreements | Draft by chatting with an AI, or type the fields in by hand; download as PDF or Markdown |
 
-The other ten agreements are listed but not yet draftable. Common Paper
-publishes a cover page for the Mutual NDA alone, and the cover page is the part
-a user fills in — see [`templates/README.md`](templates/README.md).
+Draftable today: **Mutual NDA**, **AI Addendum**, **Business Associate
+Agreement**, **Pilot Agreement**, **Service Level Agreement** and **Design
+Partner Agreement**.
+
+The remaining five — Cloud Service Agreement, Software License Agreement,
+Professional Services Agreement, Partnership Agreement and Data Processing
+Agreement — are listed but not yet draftable. Common Paper publishes a cover
+page for the Mutual NDA alone, and the cover page is the part a user fills in,
+so the others had to be written rather than sourced. Those five split their
+values across two or three separate exhibits, which is a design decision the
+templates do not make for us. See [`cover-pages/README.md`](cover-pages/README.md).
 
 ## Tests
 

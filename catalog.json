@@ -55,7 +55,7 @@
       "standard_terms": "templates/pilot-agreement.md",
       "cover_page": null,
       "attaches_to": null,
-      "available": false
+      "available": true
     },
     {
       "id": "design-partner-agreement",
@@ -66,7 +66,7 @@
       "standard_terms": "templates/design-partner-agreement.md",
       "cover_page": null,
       "attaches_to": null,
-      "available": false
+      "available": true
     },
     {
       "id": "partnership-agreement",
@@ -88,7 +88,7 @@
       "standard_terms": "templates/service-level-agreement.md",
       "cover_page": null,
       "attaches_to": "cloud-service-agreement",
-      "available": false
+      "available": true
     },
     {
       "id": "data-processing-agreement",
@@ -110,7 +110,7 @@
       "standard_terms": "templates/business-associate-agreement.md",
       "cover_page": null,
       "attaches_to": "cloud-service-agreement",
-      "available": false
+      "available": true
     },
     {
       "id": "ai-addendum",
@@ -121,7 +121,7 @@
       "standard_terms": "templates/ai-addendum.md",
       "cover_page": null,
       "attaches_to": "cloud-service-agreement",
-      "available": false
+      "available": true
     }
   ]
 }

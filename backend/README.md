@@ -23,7 +23,14 @@ Requests to `/` will return 503 until the frontend has been built
 | `GET /api/health` | Liveness. Reports whether SQLite and the catalog are readable. |
 | `POST /api/session` | Placeholder sign-in. Finds or creates a user by email. |
 | `GET /api/catalog` | The 11 documents from `catalog.json`. |
-| `POST /api/documents/mutual-nda/chat` | One turn of the drafting chat. Stateless — see below. |
+| `POST /api/documents/mutual-nda/chat` | One turn of the Mutual NDA's own chat. Stateless — see below. |
+| `POST /api/documents/{document_id}/chat` | One turn for any other draftable document. 404 if the id is unknown or not yet available. |
+| `POST /api/assistant/chat` | Recommends which document the user needs. |
+
+The literal NDA route is registered **before** the parameterised one in
+`main.py`. Starlette matches routes in registration order with no preference for
+a more specific path, so that ordering is the only thing keeping the NDA's own
+handler. `tests/test_documents_chat.py` fails if it is swapped.
 
 `/docs` has the generated OpenAPI UI.
 
@@ -66,6 +73,46 @@ translates to and from HTTP. Without `OPENROUTER_API_KEY` the endpoint answers
 502 whose detail is deliberately generic — the cause is logged instead, because
 a provider error body can carry request internals.
 
+## Two chat engines, on purpose
+
+`llm.py` drafts the Mutual NDA. `generic_llm.py` drafts everything else, from
+data: `document_specs.py` reads `cover-pages/<id>.json` for a document's fields,
+and `dynamic_models.py` builds that document's Structured Outputs schema with
+`create_model`.
+
+They look alike, and merging them would be a mistake. The NDA's two term fields
+are tagged unions (`{"kind": "fixed", "years": 3}`) that no other agreement has,
+so a string-keyed engine would have to special-case the one document the engine
+exists to stop treating specially. The NDA is also the only implementation that
+has been exercised against the real provider and is covered by a parity suite.
+The duplication is paid once; the risk would be paid every time either changed.
+
+### Why the patch schema is built per document rather than being a dict
+
+Strict Structured Outputs requires every property enumerated with
+`additionalProperties: false`. A `dict[str, str]` is by definition a schema with
+unbounded keys, so it cannot be expressed strictly — the provider would either
+refuse it or stop enforcing it, and enforcement is the entire reason the patch
+is a structured output rather than prose to be parsed. Enumerating the keys also
+tells the model exactly which fields exist, so it cannot invent one.
+
+### The assistant always leaves the user a move
+
+Each turn reports `needsFollowUp`. When it is true and the reply does not end in
+a question, `conversation.ensure_follow_up_question` appends one. Rejecting the
+turn instead would throw away a good reply and a valid patch over punctuation,
+and cost the user a round trip to fix it.
+
+## Picking a document
+
+`POST /api/assistant/chat` takes a description of the situation and recommends
+an agreement. Two things are deliberately not left to the model: the recommended
+id is a `Literal` of real catalog ids, so a document that does not exist cannot
+be recommended; and whether that document is *available* is looked up in the
+catalog afterwards rather than asked for, because a model reporting its own
+availability would be a second source of truth that could disagree with the
+first.
+
 ## The database is disposable
 
 `db.init_db` drops every table and recreates it on each boot, per the project's
@@ -86,7 +133,13 @@ connection awkward under FastAPI's threadpool.
 | `src/prelegal/db.py` | Connection handling and the schema |
 | `src/prelegal/models.py` | Request and response shapes |
 | `src/prelegal/catalog.py` | Reads and caches `catalog.json` |
-| `src/prelegal/llm.py` | The drafting assistant: prompt, and the one model call |
+| `src/prelegal/llm.py` | The Mutual NDA's assistant: prompt, and the one model call |
+| `src/prelegal/generic_llm.py` | The same, for every other document, built from its spec |
+| `src/prelegal/document_specs.py` | Reads `cover-pages/*.json`: what each document asks for |
+| `src/prelegal/fields.py` | Which values a template substitutes, read from its span markup |
+| `src/prelegal/dynamic_models.py` | Per-document Structured Outputs schemas |
+| `src/prelegal/conversation.py` | The guarantee that a turn ends on a question |
+| `src/prelegal/triage.py` | Recommending which document someone needs |
 | `src/prelegal/routers/` | One module per endpoint group |
 
 ### Serving a static export is not quite static serving
@@ -110,7 +163,12 @@ uv run pytest
 | `tests/test_catalog.py` | The real `catalog.json`, including that every template path exists |
 | `tests/test_frontend_serving.py` | Route resolution, the 404 page, path traversal |
 | `tests/test_health.py` | Health reporting, and that the database really is recreated on boot |
-| `tests/test_chat.py` | One turn end to end, the prompt it builds, and every failure path |
+| `tests/test_chat.py` | The Mutual NDA's turn end to end, the prompt it builds, and every failure path |
+| `tests/test_documents_chat.py` | The same for the generic engine, plus that the NDA's own route still wins |
+| `tests/test_assistant_chat.py` | Recommendations, and that an invented document id cannot survive |
+| `tests/test_document_specs.py` | Every overlay against the template it describes, both directions |
+| `tests/test_fields.py` | Reading field names out of span markup, including its edge cases |
+| `tests/test_conversation.py` | The follow-up-question guarantee, as a pure function |
 
 `tests/test_catalog.py` reads the shipped `catalog.json` rather than a fixture —
 a fixture would stay green while the catalog the product ships broke.

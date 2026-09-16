@@ -1,0 +1,54 @@
+{
+  "id": "ai-addendum",
+  "tier": "Cover Page",
+  "note": "Common Paper publishes no cover page for the AI Addendum. These fields are the substitution points its Standard Terms already name; the labels and hints are ours.",
+  "parties": {
+    "a": { "field": "Provider", "label": "Provider" },
+    "b": { "field": "Customer", "label": "Customer" }
+  },
+  "derived": [],
+  "sections": [
+    {
+      "title": "Model training",
+      "hint": "Leave Training Data and Training Purposes empty and the Standard Terms forbid training outright.",
+      "fields": [
+        {
+          "field": "Training Data",
+          "id": "trainingData",
+          "type": "textarea",
+          "label": "Training data",
+          "hint": "Which of the customer's inputs or outputs, if any, may be used to train a model.",
+          "placeholder": "Prompts submitted through the public API, excluding any file attachments",
+          "optional": true
+        },
+        {
+          "field": "Training Purposes",
+          "id": "trainingPurposes",
+          "type": "textarea",
+          "label": "Training purposes",
+          "hint": "What that training data may be used to do. Required if training is permitted at all.",
+          "placeholder": "Improving the accuracy of the provider's own classification models",
+          "optional": true
+        },
+        {
+          "field": "Training Restrictions",
+          "id": "trainingRestrictions",
+          "type": "textarea",
+          "label": "Training restrictions",
+          "hint": "Limits on that training — retention, de-identification, anything off-limits.",
+          "placeholder": "Data must be de-identified before use and deleted within 12 months",
+          "optional": true
+        },
+        {
+          "field": "Improvement Restrictions",
+          "id": "improvementRestrictions",
+          "type": "textarea",
+          "label": "Improvement restrictions",
+          "hint": "Limits on using inputs and outputs to run and improve the service short of training.",
+          "placeholder": "No human review of customer inputs without prior written consent",
+          "optional": true
+        }
+      ]
+    }
+  ]
+}

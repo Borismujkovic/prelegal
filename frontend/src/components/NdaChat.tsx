@@ -16,6 +16,7 @@ import {
   type ChatMessage,
   type CoverPagePatch,
 } from "@/lib/chat";
+import { useChatFocusRestore } from "@/lib/generic/useChatFocusRestore";
 import type { CoverPageValues } from "@/lib/nda-fields";
 
 const INPUT_CLASS =
@@ -70,6 +71,8 @@ export function NdaChat({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const { composerRef, textareaRef, captureFocusIntent } =
+    useChatFocusRestore(sending);
 
   // Keep the newest message in view as the conversation grows.
   useEffect(() => {
@@ -82,6 +85,7 @@ export function NdaChat({
    * state so a retry resends the failed turn instead of appending it twice.
    */
   async function send(history: ChatMessage[]) {
+    captureFocusIntent();
     setSending(true);
     setError(null);
 
@@ -109,6 +113,7 @@ export function NdaChat({
 
   return (
     <section
+      ref={composerRef}
       aria-label="Chat with the drafting assistant"
       className="flex h-[32rem] flex-col rounded-lg border border-slate-200 bg-white lg:h-[calc(100vh-16rem)]"
     >
@@ -148,6 +153,7 @@ export function NdaChat({
         <div className="flex items-end gap-2">
           <textarea
             id="chat-message"
+            ref={textareaRef}
             rows={2}
             // Matches the backend's own cap, so the limit is felt as the box
             // refusing more text rather than as a rejected request.

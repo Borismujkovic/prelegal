@@ -170,11 +170,14 @@ class ChatTurn(BaseModel):
 
     This is both the Structured Outputs schema handed to the model and the
     response body. `reply` is declared first so the model writes its prose
-    before committing to field values rather than the other way round.
+    before committing to field values rather than the other way round, and
+    `needsFollowUp` last so it is decided in the light of what the turn actually
+    changed.
     """
 
     reply: str = Field(max_length=2000)
     patch: CoverPagePatch
+    needsFollowUp: bool  # noqa: N815 — mirrors the frontend field name.
 
 
 class ChatRequest(BaseModel):
@@ -182,3 +185,77 @@ class ChatRequest(BaseModel):
 
     messages: list[ChatMessage] = Field(min_length=1, max_length=60)
     values: CoverPageValues
+
+
+# --------------------------------------------------------------------------- #
+# The generic drafting engine (PL-6)
+#
+# The Mutual NDA's models above name their fields; these cannot, because the
+# fields differ per document and are read from cover-pages/<id>.json at runtime.
+# So values cross the wire as a plain mapping, keyed by the camelCase ids the
+# overlay assigns. That is safe in this direction because Pydantic validates it
+# here, against the document's own spec. It is emphatically not safe in the
+# other direction — see dynamic_models.py for why the patch the model *returns*
+# has every key enumerated instead.
+# --------------------------------------------------------------------------- #
+
+
+class GenericValues(BaseModel):
+    """A document's values as they currently stand, resent with every turn.
+
+    Two parts, deliberately: `fields` is open and per-document, the parties are
+    fixed and shared. Every agreement here has exactly two sides, so one
+    signature block serves all of them and `Party` is reused unchanged from the
+    Mutual NDA rather than re-modelled per document.
+    """
+
+    fields: dict[str, Annotated[str, Field(max_length=4000)]] = Field(
+        default_factory=dict, max_length=60
+    )
+    party1: Party = Field(default_factory=Party)
+    party2: Party = Field(default_factory=Party)
+
+
+class DocumentChatRequest(BaseModel):
+    """One turn of drafting, for a document named in the path."""
+
+    messages: list[ChatMessage] = Field(min_length=1, max_length=60)
+    values: GenericValues = Field(default_factory=GenericValues)
+
+
+class DocumentChatTurn(BaseModel):
+    """What a drafting turn returns.
+
+    `patch` is typed loosely here and strictly where it matters: the schema the
+    model is actually held to is built per document in dynamic_models.py, and
+    this shape is what survives being serialised back to the browser. Declaring
+    the strict one here is impossible — there are five of them.
+    """
+
+    reply: str
+    patch: dict[str, object]
+    needsFollowUp: bool  # noqa: N815 — mirrors the frontend field name.
+
+
+class AssistantChatRequest(BaseModel):
+    """One turn with the assistant that helps pick a document.
+
+    No values: this conversation fills nothing in, it only works out which
+    agreement the user actually needs.
+    """
+
+    messages: list[ChatMessage] = Field(min_length=1, max_length=60)
+
+
+class AssistantTurn(BaseModel):
+    """A recommendation, and how much use it is.
+
+    `status` is derived server-side from the catalog rather than asked of the
+    model. Whether a document is available is something catalog.json knows for
+    certain, and a model asked to report it would be a second source of truth
+    that could disagree with the first.
+    """
+
+    reply: str
+    recommendedDocumentId: str | None = None  # noqa: N815
+    status: Literal["available", "not_yet_available", "no_recommendation"]

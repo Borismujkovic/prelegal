@@ -10,8 +10,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from prelegal import dynamic_models, triage
 from prelegal.catalog import load_catalog
 from prelegal.config import settings
+from prelegal.document_specs import load_document_specs
 from prelegal.main import create_app
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -24,14 +26,29 @@ def database_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return path
 
 
+def _clear_caches() -> None:
+    """Drop everything read once and cached for the life of the process.
+
+    All four are derived from the catalog, in that order, so clearing only the
+    first would leave the specs and the two sets of schemas describing a catalog
+    that is no longer loaded. The triage schema is the easiest to forget: its
+    enum of recommendable document ids is baked in at build time, so a stale one
+    silently decides which documents the assistant believes in.
+    """
+    load_catalog.cache_clear()
+    load_document_specs.cache_clear()
+    dynamic_models.clear_cache()
+    triage.clear_cache()
+
+
 @pytest.fixture
 def client(database_path: Path) -> Iterator[TestClient]:
     """A client whose lifespan has run, so the schema exists."""
-    # The catalog is cached across tests; clear it so a monkeypatched path takes.
-    load_catalog.cache_clear()
+    # These are cached across tests; clear them so a monkeypatched path takes.
+    _clear_caches()
     with TestClient(create_app()) as test_client:
         yield test_client
-    load_catalog.cache_clear()
+    _clear_caches()
 
 
 @pytest.fixture

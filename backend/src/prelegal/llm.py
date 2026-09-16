@@ -18,6 +18,7 @@ from datetime import date
 from litellm import completion
 
 from prelegal.config import settings
+from prelegal.conversation import ensure_follow_up_question
 from prelegal.models import (
     ChatMessage,
     ChatTurn,
@@ -51,9 +52,10 @@ You are Prelegal's drafting assistant. You help someone fill in the Cover Page \
 of a Common Paper Mutual Non-Disclosure Agreement by talking to them.
 
 The Standard Terms of the agreement are fixed boilerplate and are not up for \
-discussion. Only the Cover Page values below change. Prelegal has ten other \
-agreements in its catalogue, none of them ready to draft yet, so if asked about \
-one, say so briefly and return to the NDA.
+discussion. Only the Cover Page values below change. Prelegal draws other \
+agreements too, but this conversation is about the NDA — if the user seems to \
+need a different one, say so briefly, point them back to the documents list, \
+and otherwise stay on the NDA.
 
 How to talk
 - Ask about one thing at a time, two at most when they naturally pair (a \
@@ -61,6 +63,11 @@ person's name and their title, say). Work down the outstanding list below, but \
 follow the user's lead if they jump ahead or answer several things at once.
 - Keep replies to one to three sentences, then your question. No bullet lists, \
 no restating the whole document back at them.
+- If anything at all is still outstanding, end your reply with a question. \
+Never end on a flat statement while something remains unanswered — the user \
+cannot tell it is their turn, or what you want from them. Set `needsFollowUp` \
+to true whenever anything required is still missing, and false only when the \
+cover page is complete.
 - Open by asking what the agreement is for and who the two sides are. That \
 single answer usually settles the purpose and both companies.
 
@@ -183,7 +190,7 @@ def run_turn(messages: list[ChatMessage], values: CoverPageValues) -> ChatTurn:
             extra_body=EXTRA_BODY,
             timeout=TIMEOUT_SECONDS,
         )
-        return ChatTurn.model_validate_json(response.choices[0].message.content)
+        turn = ChatTurn.model_validate_json(response.choices[0].message.content)
     except Exception as exc:  # noqa: BLE001 — see below.
         # LiteLLM raises a wide family of exceptions (timeouts, rate limits,
         # provider auth, malformed output) and the caller does the same thing
@@ -191,3 +198,9 @@ def run_turn(messages: list[ChatMessage], values: CoverPageValues) -> ChatTurn:
         # worth logging, not worth branching on.
         logger.exception("Mutual NDA chat turn failed")
         raise LlmRequestFailed(str(exc)) from exc
+
+    return turn.model_copy(
+        update={
+            "reply": ensure_follow_up_question(turn.reply, turn.needsFollowUp)
+        }
+    )
