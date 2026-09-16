@@ -46,8 +46,10 @@ PRELEGAL_PORT=8001 scripts/start-linux.sh
 
 ### Configuration
 
-Copy `.env.example` to `.env` and fill in `OPENROUTER_API_KEY`. Nothing reads it
-yet — it is passed to the container ready for the AI chat. `.env` is gitignored.
+Copy `.env.example` to `.env` and fill in `OPENROUTER_API_KEY`. The Mutual NDA
+chat needs it; without it the app still runs and the cover page can still be
+filled in by hand, but the assistant replies that it is not configured. `.env`
+is gitignored.
 
 ## Layout
 
@@ -82,7 +84,7 @@ survives, and nothing should be built on the assumption that it does.
 | --- | --- |
 | Placeholder sign-in | Creates a user row from an email. No password, no security. |
 | Document dashboard | All 11 agreements from `catalog.json` |
-| Mutual NDA creator | Fill in a cover page, download as PDF or Markdown |
+| Mutual NDA creator | Draft the cover page by chatting with an AI, or type it in by hand; download as PDF or Markdown |
 
 The other ten agreements are listed but not yet draftable. Common Paper
 publishes a cover page for the Mutual NDA alone, and the cover page is the part

@@ -8,6 +8,7 @@ are copied to fixed paths rather than sitting in a checkout.
 
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -25,6 +26,17 @@ class Settings(BaseSettings):
     #: The statically exported Next.js frontend. Absent during backend-only test
     #: runs, which is why main.py mounts it conditionally.
     static_dir: Path = REPO_ROOT / "frontend" / "out"
+
+    #: Authenticates the Mutual NDA chat against OpenRouter.
+    #:
+    #: Aliased past the PRELEGAL_ prefix on purpose: .env, .env.example and
+    #: docker-compose.yml all name it bare, and so does LiteLLM, which reads the
+    #: environment itself when it authenticates. Holding it here as well is what
+    #: lets the chat refuse a turn before making a doomed network call, and what
+    #: tests monkeypatch to exercise that path.
+    openrouter_api_key: str | None = Field(
+        default=None, validation_alias="OPENROUTER_API_KEY"
+    )
 
 
 settings = Settings()

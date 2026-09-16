@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 
 from prelegal import db
 from prelegal.config import settings
-from prelegal.routers import catalog, health, session
+from prelegal.routers import catalog, chat, health, session
 
 
 @asynccontextmanager
@@ -35,6 +35,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(session.router)
     app.include_router(catalog.router)
+    app.include_router(chat.router)
 
     _mount_frontend(app)
     return app
