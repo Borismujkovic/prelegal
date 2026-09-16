@@ -38,11 +38,21 @@ Then open **http://localhost:8000**. Interactive API docs are at
 [`/docs`](http://localhost:8000/docs).
 
 If something else on your machine already holds port 8000, set `PRELEGAL_PORT`
-to move it:
+to move it — for one run:
 
 ```bash
 PRELEGAL_PORT=8001 scripts/start-linux.sh
 ```
+
+…or for every run, by adding it to `.env`:
+
+```
+PRELEGAL_PORT=8001
+```
+
+Only the host side moves; the container still listens on 8000 internally. The
+start scripts ask Docker which port it actually published, so they poll that
+one and print the real URL when the app comes up.
 
 ### Configuration
 
