@@ -1,0 +1,93 @@
+{
+  "id": "service-level-agreement",
+  "tier": "Order Form",
+  "note": "Common Paper publishes no order form for the SLA. These fields are the substitution points its Standard Terms already name; the labels and hints are ours.",
+  "parties": {
+    "a": { "field": "Provider", "label": "Provider" },
+    "b": { "field": "Customer", "label": "Customer" }
+  },
+  "derived": [],
+  "sections": [
+    {
+      "title": "Uptime",
+      "hint": "Leave the target empty and the Standard Terms promise no uptime at all.",
+      "fields": [
+        {
+          "field": "Target Uptime",
+          "id": "targetUptime",
+          "type": "text",
+          "label": "Target uptime",
+          "hint": "The availability the provider aims for, measured each calendar month.",
+          "placeholder": "99.9%",
+          "optional": false
+        },
+        {
+          "field": "Uptime Credit",
+          "id": "uptimeCredit",
+          "type": "textarea",
+          "label": "Uptime credit",
+          "hint": "What the customer is owed when availability falls short. Service credits are capped at 8% of the fees for the period.",
+          "placeholder": "5% of monthly fees for each full percentage point below the Target Uptime",
+          "optional": false
+        },
+        {
+          "field": "Scheduled Downtime",
+          "id": "scheduledDowntime",
+          "type": "textarea",
+          "label": "Scheduled downtime",
+          "hint": "Planned maintenance windows, which do not count against uptime.",
+          "placeholder": "Sundays 02:00-06:00 UTC, with 48 hours' notice",
+          "optional": true
+        }
+      ]
+    },
+    {
+      "title": "Support response",
+      "hint": "",
+      "fields": [
+        {
+          "field": "Support Channel",
+          "id": "supportChannel",
+          "type": "text",
+          "label": "Support channel",
+          "hint": "Where the customer raises support requests. Response time is measured from arrival here.",
+          "placeholder": "support@provider.com",
+          "optional": false
+        },
+        {
+          "field": "Target Response Time",
+          "id": "targetResponseTime",
+          "type": "text",
+          "label": "Target response time",
+          "hint": "How quickly a support request is acknowledged.",
+          "placeholder": "4 business hours",
+          "optional": false
+        },
+        {
+          "field": "Response Time Credit",
+          "id": "responseTimeCredit",
+          "type": "textarea",
+          "label": "Response time credit",
+          "hint": "What the customer is owed when a request is not acknowledged in time.",
+          "placeholder": "2% of monthly fees for each missed acknowledgement",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "title": "Billing period",
+      "hint": "",
+      "fields": [
+        {
+          "field": "Subscription Period",
+          "id": "subscriptionPeriod",
+          "type": "text",
+          "label": "Subscription period",
+          "hint": "The billing term credits are calculated against, taken from the order form this SLA attaches to.",
+          "placeholder": "12 months from the Order Date",
+          "optional": false
+        }
+      ]
+    }
+  ]
+}

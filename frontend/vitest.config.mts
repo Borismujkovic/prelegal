@@ -11,5 +11,12 @@ export default defineConfig({
     setupFiles: ["./test/setup.ts"],
     include: ["test/**/*.test.{ts,tsx}"],
     globals: true,
+    // The default 5s is measured per test, but the clock runs while other
+    // workers compete for the CPU. Since PL-6 the suite renders six documents'
+    // worth of jsdom alongside the Mutual NDA's, and `userEvent` typing — which
+    // waits on real timers between keystrokes — starts losing races it would
+    // win when run alone. The symptom is a keystroke-interleaved value like
+    // "dDeeallaware", which is contention rather than anything the code did.
+    testTimeout: 20_000,
   },
 });

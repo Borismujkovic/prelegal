@@ -15,9 +15,12 @@ WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 
-# The template parser reads ../templates, so it has to be in place before the
+# The generators read ../../templates, ../../cover-pages and ../../catalog.json
+# relative to frontend/scripts, so all three have to be in place before the
 # prebuild hook runs.
 COPY templates/ /templates/
+COPY cover-pages/ /cover-pages/
+COPY catalog.json /catalog.json
 COPY frontend/ ./
 RUN npm run build
 
@@ -36,6 +39,8 @@ ENV PYTHONUNBUFFERED=1 \
     UV_LINK_MODE=copy \
     PRELEGAL_DATABASE_PATH=/app/data/prelegal.db \
     PRELEGAL_CATALOG_PATH=/app/catalog.json \
+    PRELEGAL_TEMPLATES_DIR=/app/templates \
+    PRELEGAL_COVER_PAGES_DIR=/app/cover-pages \
     PRELEGAL_STATIC_DIR=/app/frontend/out
 
 # Dependencies before source, again for layer caching.
@@ -47,9 +52,11 @@ COPY backend/ /app/backend/
 RUN --mount=type=cache,target=/root/.cache/uv \
     cd /app/backend && uv sync --frozen --no-dev
 
-# The catalog and the templates it points at.
+# The catalog, the templates it points at, and the cover pages that say what
+# each document asks for. The backend reads all three at runtime.
 COPY catalog.json /app/catalog.json
 COPY templates/ /app/templates/
+COPY cover-pages/ /app/cover-pages/
 
 COPY --from=frontend /build/out /app/frontend/out
 

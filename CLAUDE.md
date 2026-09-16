@@ -60,27 +60,32 @@ The Mutual NDA creator predates these and keeps its own slate/indigo styling.
 
 ## Current state
 
-Last updated: PL-5, 15 September 2026.
+Last updated: PL-6, 16 September 2026.
 
 **Built:**
 - The full stack: FastAPI backend in `backend/` (uv project), SQLite, Docker, start/stop scripts. One container, one port.
-- `catalog.json` — all 11 documents, with an `available` flag.
-- Dashboard at `/documents` listing the catalog.
+- `catalog.json` — all 11 documents, with an `available` flag. Six are available.
+- Dashboard at `/documents` listing the catalog, with a triage assistant above it.
 - Mutual NDA creator at `/documents/mutual-nda` — draft the cover page by chatting with the AI, or type it in by hand; download PDF or Markdown.
-- **AI chat, for the Mutual NDA only.** `POST /api/documents/mutual-nda/chat` answers one turn via LiteLLM → OpenRouter → `gpt-oss-120b` on Cerebras, with Structured Outputs. The *AI design* section above now describes the code rather than specifying it. See `backend/README.md` for how it works.
+- **AI chat for six documents.** The Mutual NDA has its own hand-written implementation (`llm.py`, `routers/chat.py`); the other five go through a generic engine (`generic_llm.py`, `routers/documents.py`) driven by data. Both use LiteLLM → OpenRouter → `gpt-oss-120b` on Cerebras with Structured Outputs. See `backend/README.md`.
+- **A triage assistant.** `POST /api/assistant/chat` recommends a document from a description of the situation, or says plainly that Prelegal does not draft what was asked for. The recommended id is constrained to a `Literal` of real catalog ids, so it cannot invent one, and availability is derived from the catalog rather than trusted from the model.
+- **`cover-pages/`** — the cover pages Common Paper never published, written as JSON and read by *both* the frontend build and the backend at runtime, so labels are authored once. See `cover-pages/README.md`.
 
 **Not built yet — do not assume otherwise:**
-- **AI chat for the other ten documents.** The chat is scoped to the Mutual NDA and its Cover Page. The path names the document rather than assuming it, so the others can take the same shape once their cover pages are sourced.
+- **The five largest documents.** CSA, Software License, PSA, Partnership and DPA are listed but not draftable. Each splits its values across two or three exhibits (Order Form / Key Terms / SOW / Business Terms), and that split is a design decision the markup does not state. 14–25 fields each.
 - **Authentication.** `/login` is a placeholder: any email creates or finds a user row, with no password, no token and nothing verified. The route guard is client-side. Not a security boundary.
-- **Document persistence.** Nothing a user drafts is saved — not the document, not the conversation. The creator holds both in React; a page reload starts over. The chat backend is stateless by design: the browser resends the transcript and the Cover Page every turn, and the server stores neither.
-- **10 of the 11 documents.** Only the Mutual NDA is draftable. Common Paper publishes a cover page for that one alone, and the cover page is what a user fills in — the others need cover pages sourced first (see `templates/README.md`).
+- **Document persistence.** Nothing a user drafts is saved — not the document, not the conversation. The creator holds both in React; a page reload starts over. Every chat backend is stateless by design: the browser resends the transcript and the values every turn, and the server stores neither.
 
 **Constraints worth knowing before you start:**
 - The database is disposable: every table is dropped and recreated on each boot. Only a `users` table exists. There is no migration story — add one when persistence starts to matter.
-- `templates/` is verbatim Common Paper, CC BY 4.0. Never hand-edit it; the frontend parses it at build time into `nda-template.generated.ts`. The attribution must travel into every generated document.
+- `templates/` is verbatim Common Paper, CC BY 4.0. Never hand-edit it; the frontend parses it at build time into `nda-template.generated.ts` (the NDA) and `src/lib/generated/*.generated.ts` (the rest). The attribution must travel into every generated document — and note only `mutual-nda.md` carries a licence line of its own, so the other five take theirs from `catalog.json`.
+- **Adding a document is a data change, not a code change.** Write `cover-pages/<id>.json`, add the id to `DOCUMENT_IDS` in `frontend/scripts/generate-documents.mjs`, flip `available` in `catalog.json`. Both generators refuse to build if the overlay and the template disagree about the field set in either direction — that check is what replaces the NDA's compile-time exhaustiveness now that fields are data.
+- The two chat engines are deliberately separate. The Mutual NDA's tagged-union term fields exist in no other document, so folding it into the generic engine would mean special-casing the very document the engine was meant to stop being special.
 - The frontend is **Next.js 16**, which differs from most training data. Read `frontend/AGENTS.md` and the version-matched docs in `frontend/node_modules/next/dist/docs/` before writing frontend code.
 - `docker build` needs network access to `fonts.googleapis.com`, because `next/font/google` downloads and self-hosts the fonts at build time.
 - Port 8000 is the default; set `PRELEGAL_PORT` if something else on the machine holds it.
 - Without `OPENROUTER_API_KEY` the app still boots and the cover page can still be filled in by hand; only the chat endpoint answers 503. Keep it that way — the key is not required to run or test the app, and `backend/tests/test_chat.py` never calls the provider.
 
-**Endpoints:** `GET /api/health`, `POST /api/session`, `GET /api/catalog`, `POST /api/documents/mutual-nda/chat`. Generated docs at `/docs`.
+**Endpoints:** `GET /api/health`, `POST /api/session`, `GET /api/catalog`, `POST /api/documents/mutual-nda/chat`, `POST /api/documents/{document_id}/chat`, `POST /api/assistant/chat`. Generated docs at `/docs`.
+
+The literal NDA route must stay registered *before* the parameterised one in `main.py`: Starlette matches in registration order with no preference for a more specific path. `backend/tests/test_documents_chat.py` pins that.

@@ -1,0 +1,86 @@
+{
+  "id": "design-partner-agreement",
+  "tier": "Key Terms",
+  "note": "Common Paper publishes no key terms sheet for the Design Partner Agreement. These fields are the substitution points its Standard Terms already name; the labels and hints are ours.",
+  "parties": {
+    "a": { "field": "Provider", "label": "Provider" },
+    "b": { "field": "Partner", "label": "Partner" }
+  },
+  "derived": [
+    { "field": "Notice Address", "from": "partyNoticeAddress" }
+  ],
+  "sections": [
+    {
+      "title": "The programme",
+      "hint": "",
+      "fields": [
+        {
+          "field": "Effective Date",
+          "id": "effectiveDate",
+          "type": "date",
+          "label": "Effective date",
+          "hint": "When the agreement starts.",
+          "placeholder": "",
+          "optional": false
+        },
+        {
+          "field": "Term",
+          "id": "term",
+          "type": "text",
+          "label": "Term",
+          "hint": "How long the partnership runs. Both sides can agree to extend it, by email if they like.",
+          "placeholder": "6 months from the Effective Date",
+          "optional": false
+        },
+        {
+          "field": "Program",
+          "id": "program",
+          "type": "textarea",
+          "label": "Program",
+          "hint": "What the partner actually does — early access, feedback on an agreed schedule, and what the provider is trying to learn.",
+          "placeholder": "Weekly feedback calls and access to pre-release builds of the analytics module",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "title": "Fees",
+      "hint": "Design partners often pay nothing; that is what this agreement is for.",
+      "fields": [
+        {
+          "field": "Fees",
+          "id": "fees",
+          "type": "text",
+          "label": "Fees",
+          "hint": "What the partner pays, if anything. Leave it empty if the programme is free.",
+          "placeholder": "None",
+          "optional": true
+        }
+      ]
+    },
+    {
+      "title": "Governing law",
+      "hint": "Common practice, not legal advice: pick the state where one of you is incorporated.",
+      "fields": [
+        {
+          "field": "Governing Law",
+          "id": "governingLaw",
+          "type": "text",
+          "label": "Governing law",
+          "hint": "The law that governs the agreement.",
+          "placeholder": "the State of Delaware",
+          "optional": false
+        },
+        {
+          "field": "Chosen Courts",
+          "id": "chosenCourts",
+          "type": "text",
+          "label": "Chosen courts",
+          "hint": "Where any dispute is heard.",
+          "placeholder": "the state and federal courts located in New Castle County, Delaware",
+          "optional": false
+        }
+      ]
+    }
+  ]
+}

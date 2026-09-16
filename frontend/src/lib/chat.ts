@@ -10,6 +10,7 @@
  * field means "unchanged", never "cleared", which is what makes it safe to feed
  * straight through the same shallow merge the form already uses.
  */
+import { describeChatFailure } from "./describe-chat-failure";
 import type { CoverPageValues, Party } from "./nda-fields";
 
 export type ChatRole = "user" | "assistant";
@@ -43,6 +44,12 @@ export type CoverPagePatch = Partial<
 export type ChatTurn = {
   reply: string;
   patch: CoverPagePatch;
+  /**
+   * Whether the assistant still needs something. The backend uses it to
+   * guarantee the reply ends on a question, so by the time it arrives here the
+   * work is already done — it is carried for completeness, not acted on.
+   */
+  needsFollowUp: boolean;
 };
 
 /**
@@ -70,36 +77,11 @@ export const GREETING: ChatMessage = {
  */
 export const MAX_MESSAGE_LENGTH = 4000;
 
-/** Turns a failed response into something worth showing a person. */
-async function describeFailure(response: Response): Promise<string> {
-  // FastAPI answers a validation failure with `detail` as an *array* of field
-  // errors, not a string, so it never matches the check below. Those errors
-  // name Pydantic internals; what a user can actually hit here is the cap on
-  // conversation length, and their document is not lost when they do.
-  if (response.status === 422) {
-    return (
-      "This conversation has grown too long for the assistant to continue. " +
-      "Nothing you have filled in is lost — you can finish the remaining " +
-      "fields in “Edit fields manually” below."
-    );
-  }
-
-  try {
-    const body = (await response.json()) as { detail?: unknown };
-    if (typeof body.detail === "string" && body.detail) return body.detail;
-  } catch {
-    // Not JSON. Fall through to a message based on the status alone.
-  }
-
-  switch (response.status) {
-    case 502:
-      return "The assistant is unavailable right now. Please try again.";
-    case 503:
-      return "The assistant is not configured on this server yet.";
-    default:
-      return "Could not reach the server. Is the backend running?";
-  }
-}
+/** The cover page survives a conversation that outgrew the cap; say so. */
+const TOO_LONG =
+  "This conversation has grown too long for the assistant to continue. " +
+  "Nothing you have filled in is lost — you can finish the remaining " +
+  "fields in “Edit fields manually” below.";
 
 /** Sends one turn. Throws with a readable message on failure. */
 export async function sendChatTurn(
@@ -115,7 +97,7 @@ export async function sendChatTurn(
   });
 
   if (!response.ok) {
-    throw new Error(await describeFailure(response));
+    throw new Error(await describeChatFailure(response, TOO_LONG));
   }
 
   return (await response.json()) as ChatTurn;

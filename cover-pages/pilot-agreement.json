@@ -1,0 +1,77 @@
+{
+  "id": "pilot-agreement",
+  "tier": "Order Form",
+  "note": "Common Paper publishes no order form for the Pilot Agreement. These fields are the substitution points its Standard Terms already name; the labels and hints are ours.",
+  "parties": {
+    "a": { "field": "Provider", "label": "Provider" },
+    "b": { "field": "Customer", "label": "Customer" }
+  },
+  "derived": [
+    { "field": "Notice Address", "from": "partyNoticeAddress" }
+  ],
+  "sections": [
+    {
+      "title": "The pilot",
+      "hint": "",
+      "fields": [
+        {
+          "field": "Effective Date",
+          "id": "effectiveDate",
+          "type": "date",
+          "label": "Effective date",
+          "hint": "When the agreement starts.",
+          "placeholder": "",
+          "optional": false
+        },
+        {
+          "field": "Pilot Period",
+          "id": "pilotPeriod",
+          "type": "text",
+          "label": "Pilot period",
+          "hint": "How long the customer may evaluate the product. The agreement runs through the end of it.",
+          "placeholder": "90 days from the Effective Date",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "title": "Liability",
+      "hint": "",
+      "fields": [
+        {
+          "field": "General Cap Amount",
+          "id": "generalCapAmount",
+          "type": "text",
+          "label": "General cap amount",
+          "hint": "The ceiling on each party's total liability under the agreement.",
+          "placeholder": "the fees paid under this Agreement",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "title": "Governing law",
+      "hint": "Common practice, not legal advice: pick the state where one of you is incorporated.",
+      "fields": [
+        {
+          "field": "Governing Law",
+          "id": "governingLaw",
+          "type": "text",
+          "label": "Governing law",
+          "hint": "The law that governs the agreement.",
+          "placeholder": "the State of Delaware",
+          "optional": false
+        },
+        {
+          "field": "Chosen Courts",
+          "id": "chosenCourts",
+          "type": "text",
+          "label": "Chosen courts",
+          "hint": "Where any dispute is heard.",
+          "placeholder": "the state and federal courts located in New Castle County, Delaware",
+          "optional": false
+        }
+      ]
+    }
+  ]
+}

@@ -48,15 +48,29 @@ exercise), and `claude-skill` (an agent skill).
   boilerplate Standard Terms plus a short Cover Page (or Order Form / Key Terms)
   carrying the deal-specific values. Only the Mutual NDA publishes its cover page
   as markdown upstream; for the rest, only the Standard Terms exist here. The
-  negotiated fields are what a user actually fills in, so cover pages for the
-  other agreements still need sourcing before those templates are end-to-end
-  usable.
+  negotiated fields are what a user actually fills in, so a cover page for each
+  of the other agreements had to be written rather than sourced — those live in
+  [`cover-pages/`](../cover-pages), separate from this directory so that these
+  files stay verbatim. Five are written; see that directory's README for which.
 - **Inline HTML is meaningful.** Most files wrap terms in spans such as
   `<span class="coverpage_link">Customer</span>`, `keyterms_link`, `orderform_link`,
-  and `sow_link`. Each one marks a value defined on the Cover Page / Key Terms /
-  Order Form / SOW rather than in the body — these are the substitution points a
-  document generator should target. `header_2` / `header_3` spans carry the clause
-  numbering. Strip this markup and the templates lose their structure.
+  `sow_link`, and `businessterms_link`. Each one marks a value defined on the
+  Cover Page / Key Terms / Order Form / SOW / Business Terms rather than in the
+  body — these are the substitution points a document generator should target.
+  `header_2` / `header_3` spans carry the clause numbering. Strip this markup and
+  the templates lose their structure.
+- **Scan for every span class, not the one you expect.** A single agreement can
+  mix them: the SLA uses `coverpage_link` and `orderform_link` together, and
+  `businessterms_link` appears only in the Partnership Agreement. Filtering by
+  the class an agreement is nominally filed under silently drops fields.
+- **A term can appear inside other markup.** The Pilot Agreement's liability cap
+  wraps its span in a bold run, and the same term appears possessive elsewhere
+  (`Provider` and `Provider's` are one value, with both straight and curly
+  apostrophes in use). A parser that matches bold before spans, or that does not
+  normalise possessives, will undercount.
+- **Only the Mutual NDA carries a CC BY line.** The other templates end at their
+  definitions, so anything generated from them has to take the attribution from
+  `catalog.json` instead. It still has to travel with the document.
 - **Agreements are composable.** The AI Addendum, DPA, BAA, and SLA are meant to
   attach to a primary agreement (usually the CSA or Software License Agreement),
   not to stand alone.

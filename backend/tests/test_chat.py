@@ -64,9 +64,11 @@ class FakeResponse:
         self.choices = [FakeChoice(content)]
 
 
-def returning(reply: str = "Got it.", **patch: Any):
+def returning(reply: str = "Got it.", needs_follow_up: bool = False, **patch: Any):
     """A stand-in completion that answers with one valid ChatTurn."""
-    payload = json.dumps({"reply": reply, "patch": patch})
+    payload = json.dumps(
+        {"reply": reply, "patch": patch, "needsFollowUp": needs_follow_up}
+    )
 
     def fake_completion(**kwargs: Any) -> FakeResponse:
         fake_completion.calls.append(kwargs)
@@ -90,7 +92,11 @@ def test_a_turn_returns_the_reply_and_what_it_established(
     response = client.post(ENDPOINT, json=a_request())
 
     assert response.status_code == 200
-    assert response.json() == {"reply": "Noted.", "patch": {"purpose": "A partnership"}}
+    assert response.json() == {
+        "reply": "Noted.",
+        "patch": {"purpose": "A partnership"},
+        "needsFollowUp": False,
+    }
 
 
 def test_a_turn_that_established_nothing_returns_an_empty_patch(
@@ -284,3 +290,32 @@ def test_the_prompt_carries_todays_date_for_resolving_relative_dates():
 
 def test_the_prompt_frames_suggestions_as_common_practice_not_advice():
     assert "not legal advice" in llm.SYSTEM_PROMPT
+
+
+def test_an_unfinished_turn_that_forgot_to_ask_is_given_a_question(
+    client, configured, monkeypatch
+):
+    """The NDA gets the same guarantee the other documents do: a turn that still
+    needs something never ends on a flat statement the user cannot answer."""
+    monkeypatch.setattr(
+        llm, "completion", returning("I have recorded Delaware.", needs_follow_up=True)
+    )
+
+    reply = client.post(ENDPOINT, json=a_request()).json()["reply"]
+
+    assert reply.endswith("?")
+    assert reply.startswith("I have recorded Delaware.")
+
+
+def test_a_finished_turn_is_left_to_end_on_a_statement(client, configured, monkeypatch):
+    monkeypatch.setattr(
+        llm, "completion", returning("That is everything.", needs_follow_up=False)
+    )
+
+    assert client.post(ENDPOINT, json=a_request()).json()["reply"] == (
+        "That is everything."
+    )
+
+
+def test_the_prompt_insists_on_ending_with_a_question():
+    assert "end your reply with a question" in llm.SYSTEM_PROMPT

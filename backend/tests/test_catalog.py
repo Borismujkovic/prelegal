@@ -18,13 +18,21 @@ def test_catalog_lists_all_eleven_documents(client: TestClient) -> None:
     assert len(response.json()["documents"]) == 11
 
 
-def test_only_the_mutual_nda_is_available(client: TestClient) -> None:
-    """The other ten have no cover page published upstream, so they cannot be
-    filled in yet — see templates/README.md."""
+def test_the_six_draftable_documents_are_available(client: TestClient) -> None:
+    """The remaining five are the large multi-exhibit agreements — the Cloud
+    Service Agreement and its relatives — whose cover pages are still to be
+    written. See cover-pages/README.md."""
     documents = client.get("/api/catalog").json()["documents"]
 
-    available = [document["id"] for document in documents if document["available"]]
-    assert available == ["mutual-nda"]
+    available = {document["id"] for document in documents if document["available"]}
+    assert available == {
+        "mutual-nda",
+        "ai-addendum",
+        "business-associate-agreement",
+        "pilot-agreement",
+        "service-level-agreement",
+        "design-partner-agreement",
+    }
 
 
 def test_every_document_has_an_id_unique_within_the_catalog(client: TestClient) -> None:
@@ -53,11 +61,26 @@ def test_attaches_to_always_names_a_real_document() -> None:
             assert document.attaches_to in ids, document.id
 
 
-def test_an_available_document_has_a_cover_page() -> None:
-    """Availability means fillable, and the cover page is what gets filled in."""
+def test_an_available_document_has_something_to_fill_in() -> None:
+    """Availability means fillable, and it is the cover page that gets filled in.
+
+    Which cover page depends on the document. Common Paper published one for the
+    Mutual NDA, so the catalog points at it. For the rest there was none to
+    point at, and `cover-pages/<id>.json` is what supplies the fields instead —
+    so this asserts that one of the two exists rather than that the catalog
+    entry is populated, which would now be false for five available documents.
+    """
+    overlays = settings.cover_pages_dir
+    repo_root = settings.catalog_path.parent
+
     for document in load_catalog().documents:
-        if document.available:
-            assert document.cover_page, document.id
+        if not document.available:
+            continue
+        published = bool(document.cover_page) and (
+            repo_root / document.cover_page
+        ).is_file()
+        authored = (overlays / f"{document.id}.json").is_file()
+        assert published or authored, document.id
 
 
 def test_the_attribution_survives(client: TestClient) -> None:

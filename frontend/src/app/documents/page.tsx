@@ -3,14 +3,19 @@
 /**
  * The dashboard: everything Prelegal can draft, from catalog.json.
  *
- * Ten of the eleven are listed but not yet draftable — Common Paper publishes a
- * cover page for the Mutual NDA alone, and the cover page is what a user fills
- * in (see templates/README.md). Listing them anyway is deliberate: it shows the
- * shape of V1 rather than pretending the product is one document wide.
+ * Six of the eleven are draftable. The remaining five are the large
+ * multi-exhibit agreements — the Cloud Service Agreement and its relatives —
+ * whose cover pages are still to be written (see cover-pages/README.md).
+ * Listing them anyway is deliberate: it shows the shape of V1 rather than
+ * pretending the product is narrower than it is going to be.
+ *
+ * The assistant above the grid is for people who do not know which of these
+ * they need, which is most people the first time.
  */
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { TriageAssistant } from "@/components/generic/TriageAssistant";
 import { fetchCatalog, type Catalog, type CatalogDocument } from "@/lib/catalog";
 import { useSession } from "@/components/SessionProvider";
 
@@ -54,6 +59,10 @@ export default function DocumentsPage() {
 
       {catalog && (
         <>
+          <div className="mb-8">
+            <TriageAssistant catalog={catalog.documents} />
+          </div>
+
           <ul className="grid gap-4 sm:grid-cols-2">
             {catalog.documents.map((entry) => (
               <li key={entry.id}>
@@ -89,7 +98,9 @@ function DocumentCard({ entry }: { entry: CatalogDocument }) {
     return (
       <div className="h-full rounded-lg border border-dashed border-slate-300 bg-white/50 p-5">
         {card}
-        <p className="mt-4 text-xs font-medium tracking-wide text-brand-yellow uppercase">
+        {/* Yellow tints the badge rather than colouring the text: #ecad0a is
+            about 2:1 on white, which is not readable at this size. */}
+        <p className="mt-4 inline-block rounded border border-brand-yellow/40 bg-brand-yellow/10 px-2 py-1 text-xs font-medium tracking-wide text-navy uppercase">
           Coming soon
         </p>
       </div>

@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 
 from prelegal import db
 from prelegal.config import settings
-from prelegal.routers import catalog, chat, health, session
+from prelegal.routers import assistant, catalog, chat, documents, health, session
 
 
 @asynccontextmanager
@@ -36,6 +36,12 @@ def create_app() -> FastAPI:
     app.include_router(session.router)
     app.include_router(catalog.router)
     app.include_router(chat.router)
+    # The Mutual NDA keeps its own literal route, and Starlette matches in
+    # registration order with no preference for a more specific path — so the
+    # parameterised route below must come after it, or it would swallow that
+    # path and answer with the wrong engine.
+    app.include_router(documents.router)
+    app.include_router(assistant.router)
 
     _mount_frontend(app)
     return app
@@ -62,7 +68,7 @@ def _resolve_static_file(url_path: str) -> Path | None:
         if candidate is None:
             continue
         resolved = candidate.resolve()
-        # Refuse anything that escapes the export directory — `..` in the URL,
+        # Refuse anything that escapes the export directory â `..` in the URL,
         # or a symlink pointing outside it.
         if not resolved.is_relative_to(static_dir):
             continue

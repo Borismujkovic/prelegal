@@ -23,6 +23,15 @@ class Settings(BaseSettings):
     #: The document catalog, the single source of truth for what can be drafted.
     catalog_path: Path = REPO_ROOT / "catalog.json"
 
+    #: The verbatim Common Paper Standard Terms. Read to check that every cover
+    #: page overlay still describes exactly the fields its agreement substitutes.
+    templates_dir: Path = REPO_ROOT / "templates"
+
+    #: Prelegal's cover page overlays: the labels, hints and field types that
+    #: Common Paper never published for these agreements. The frontend build
+    #: reads the same files, so the wording is authored once.
+    cover_pages_dir: Path = REPO_ROOT / "cover-pages"
+
     #: The statically exported Next.js frontend. Absent during backend-only test
     #: runs, which is why main.py mounts it conditionally.
     static_dir: Path = REPO_ROOT / "frontend" / "out"
