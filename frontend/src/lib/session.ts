@@ -1,13 +1,17 @@
 /**
- * Who is "signed in".
+ * Who is signed in.
  *
- * There is no authentication here and none is implied. The backend creates a
- * user row for whatever email is typed, without a password and without
- * verifying anything, and this module keeps the resulting row in localStorage.
- * Anyone can be anyone. PL-4 asks only for a way into the platform.
+ * Nothing about the session is stored here any more. It used to live in
+ * localStorage, because there was no real session to store — the backend took
+ * an email and handed back a user row. Now there is a password and a session
+ * the server can end, and the token for it lives in an HttpOnly cookie that
+ * this file cannot read and neither can anything else on the page. That is the
+ * point: a token in localStorage is one cross-site script away from being
+ * someone else's.
  *
- * When real auth lands it replaces this file: the shape a component consumes
- * (`useSession`) is meant to survive, the storage mechanism is not.
+ * So "am I signed in" becomes a question for the server rather than a value to
+ * read, and `fetchCurrentUser` is how it is asked. The shape a component
+ * consumes (`useSession`) is deliberately unchanged from before.
  */
 
 export type User = {
@@ -17,87 +21,124 @@ export type User = {
   created_at: string;
 };
 
-const STORAGE_KEY = "prelegal.user";
+/** Thrown when the server says the session is over. */
+export class UnauthorizedError extends Error {
+  constructor(message = "Your session has ended. Please sign in again.") {
+    super(message);
+    this.name = "UnauthorizedError";
+  }
+}
+
+const UNREACHABLE = "Could not reach the server. Is the backend running?";
 
 /**
- * Dispatched after a write. The DOM "storage" event only fires in *other* tabs,
- * so without this the tab that signed in would never re-render.
+ * `same-origin` is the browser default, and stated anyway: this whole design
+ * rests on the cookie riding along, and a default is a poor place to keep
+ * something load-bearing.
  */
-export const SESSION_CHANGED_EVENT = "prelegal:session-changed";
-
-function announceChange(): void {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(new Event(SESSION_CHANGED_EVENT));
-}
-
-/** Parse a raw stored value. Anything unexpected reads as signed out. */
-export function readStoredUserFrom(raw: string | null): User | null {
-  if (!raw) return null;
+async function send(path: string, body: unknown): Promise<Response> {
   try {
-    const parsed: unknown = JSON.parse(raw);
-    return isUser(parsed) ? parsed : null;
+    return await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(body),
+    });
   } catch {
-    // A corrupt or hand-edited value: treat as signed out.
-    return null;
+    // A network-level failure, not an HTTP status.
+    throw new Error(UNREACHABLE);
   }
 }
 
-/** Read the stored user, or null. Safe to call before hydration. */
-export function readStoredUser(): User | null {
-  if (typeof window === "undefined") return null;
+/**
+ * Turn a validation failure into something a person can act on.
+ *
+ * FastAPI's 422 body is a list of per-field errors aimed at a developer. The
+ * two that a user can actually hit are worth translating; anything else falls
+ * back to a general message rather than showing them a JSON path.
+ */
+async function describeFailure(response: Response): Promise<string> {
+  if (response.status === 409) {
+    return "That email address already has an account. Sign in instead.";
+  }
+  if (response.status === 422) {
+    const detail = await readDetail(response);
+    return detail.includes("password")
+      ? "Your password needs to be at least 8 characters."
+      : "That does not look like an email address.";
+  }
+  if (response.status === 401) {
+    return "That email address and password do not match an account.";
+  }
+  return UNREACHABLE;
+}
+
+async function readDetail(response: Response): Promise<string> {
   try {
-    return readStoredUserFrom(window.localStorage.getItem(STORAGE_KEY));
+    const body: unknown = await response.json();
+    return JSON.stringify(body);
   } catch {
-    // Private mode, or site data disabled.
-    return null;
+    return "";
   }
 }
 
-export function storeUser(user: User): void {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-  } catch {
-    // Non-fatal: the session just will not survive a reload.
-  }
-  announceChange();
-}
-
-export function clearStoredUser(): void {
-  try {
-    window.localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // Non-fatal.
-  }
-  announceChange();
-}
-
-/** Guards against a stale or hand-edited localStorage value. */
-function isUser(value: unknown): value is User {
-  if (typeof value !== "object" || value === null) return false;
-  const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.id === "number" &&
-    typeof candidate.email === "string" &&
-    typeof candidate.display_name === "string" &&
-    typeof candidate.created_at === "string"
-  );
-}
-
-/** Sign in, creating the user on first use. Throws with a readable message. */
-export async function signIn(email: string, displayName?: string): Promise<User> {
-  const response = await fetch("/api/session", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, display_name: displayName || null }),
+export async function register(
+  email: string,
+  password: string,
+  displayName?: string,
+): Promise<User> {
+  const response = await send("/api/auth/register", {
+    email,
+    password,
+    display_name: displayName?.trim() || null,
   });
 
-  if (!response.ok) {
-    throw new Error(
-      response.status === 422
-        ? "That does not look like an email address."
-        : "Could not reach the server. Is the backend running?",
-    );
-  }
+  if (!response.ok) throw new Error(await describeFailure(response));
+  return (await response.json()) as User;
+}
 
+export async function signIn(email: string, password: string): Promise<User> {
+  const response = await send("/api/auth/login", { email, password });
+
+  if (!response.ok) throw new Error(await describeFailure(response));
+  return (await response.json()) as User;
+}
+
+/**
+ * End the session. Never throws.
+ *
+ * Signing out has to work even when the server cannot be reached, because the
+ * alternative is a user who has pressed "sign out" and is still apparently
+ * signed in. The backend answers 204 even for a cookie it does not recognise,
+ * so the only failure left here is the network — and in that case dropping the
+ * session locally is still the right thing to do.
+ */
+export async function signOut(): Promise<void> {
+  try {
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "same-origin",
+    });
+  } catch {
+    // Nothing useful to do, and nothing the user could do about it.
+  }
+}
+
+/**
+ * The signed-in user, or null. Never throws for "not signed in".
+ *
+ * A 401 here is the ordinary answer to the question, not an error: it is what
+ * a visitor who has never signed in gets. Genuine failures — the backend being
+ * down — also read as signed out, because the app cannot show anything behind
+ * the guard without it anyway.
+ */
+export async function fetchCurrentUser(signal?: AbortSignal): Promise<User | null> {
+  const response = await fetch("/api/auth/me", {
+    credentials: "same-origin",
+    signal,
+  });
+
+  if (response.status === 401) return null;
+  if (!response.ok) throw new Error(UNREACHABLE);
   return (await response.json()) as User;
 }

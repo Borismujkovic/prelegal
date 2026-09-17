@@ -1,11 +1,11 @@
 # Prelegal frontend
 
 A Next.js app for drafting agreements from the templates in
-[`../templates`](../templates). It implements one so far: the
-**Mutual NDA** ([PL-3](https://borismujkovic.atlassian.net/browse/PL-3)).
+[`../templates`](../templates). Six are draftable: the **Mutual NDA**, which has
+its own hand-written creator, and five more driven by generated data.
 
-Fill in the cover page, watch the agreement fill in beside it, and download the
-result.
+Draft by chatting with the assistant or by typing the fields in, watch the
+agreement fill in beside you, then save it or download it.
 
 ## Running it
 
@@ -25,10 +25,19 @@ server.
 
 | Route | What it is |
 | --- | --- |
-| `/` | Redirect: to `/documents` when signed in, `/login` otherwise |
-| `/login` | Placeholder sign-in. No password, no security — see below |
+| `/` | Landing page for signed-out visitors; redirects to `/documents` when signed in |
+| `/login` | Sign in with an email and password |
+| `/signup` | Create an account |
 | `/documents` | Dashboard, listing everything in `../catalog.json` |
-| `/documents/mutual-nda` | The creator |
+| `/documents/history` | Saved drafts. A literal segment, so it beats `[documentId]` below |
+| `/documents/mutual-nda` | The Mutual NDA creator, hand-written |
+| `/documents/[documentId]` | The creator for the other five, from generated data |
+
+Both creators accept `?draft=<id>` to reopen a saved draft. That is a query
+rather than a route segment because a static export needs `generateStaticParams`
+for a dynamic one, and a draft's id does not exist until a user creates it.
+Reading it means `useSearchParams`, which makes the page suspend — so each
+creator sits under a `<Suspense>` boundary, without which `next build` fails.
 
 ### It is a static export
 
@@ -38,8 +47,15 @@ features by design — no Server Actions, no Route Handlers reading a request, n
 server-side redirects. Anything needing a server belongs in the backend under
 `/api`.
 
-It also means the route guard, the `/` redirect and the sign-in state are all
-client-side. None of it is a security boundary.
+It also means the route guard and the `/` redirect are client-side, and neither
+is a security boundary — they keep a signed-out visitor off a page that would
+not work, nothing more. What changed in PL-7 is what stands behind them: the API
+checks a session cookie on every route that touches a user's data, so the guard
+is no longer the only thing in the way.
+
+The session itself is an HttpOnly cookie, which this code cannot read by design.
+"Am I signed in" is therefore a question for the server — `SessionProvider` asks
+`GET /api/auth/me` on mount — rather than a value to read synchronously.
 
 | Script | What it does |
 | --- | --- |
@@ -50,9 +66,11 @@ client-side. None of it is a security boundary.
 | `npm test` | Vitest, once |
 | `npm run test:watch` | Vitest, watching |
 
-Nothing typed into an agreement is sent anywhere — the creator runs entirely in
-the browser. The only thing that reaches the backend is the email typed into the
-placeholder sign-in.
+What leaves the browser, and when: credentials on sign-up and sign-in; the
+transcript and the current values on each chat turn, which the server answers
+and stores nothing of; and the values of a draft when the user presses Save.
+Nothing is sent in the background — drafting with the chat closed and the Save
+button untouched still reaches no server.
 
 ## How the agreement text gets here
 
@@ -90,9 +108,17 @@ handled rather than silently rendering a gap.
 | `src/components/NdaDocument.tsx` | The rendered agreement (also what prints) |
 | `src/components/CoverPageForm.tsx` | The form |
 | `src/components/DownloadBar.tsx` | Completeness indicator and download actions |
-| `src/lib/session.ts` | The placeholder sign-in, and its localStorage |
+| `src/lib/session.ts` | Registering, signing in and out, and asking who you are |
 | `src/lib/catalog.ts` | Catalog types and fetching |
-| `src/components/SessionProvider.tsx` | Reads the stored session via `useSyncExternalStore` |
+| `src/lib/drafts.ts` | Saved drafts over the wire. `values` comes back `unknown`, on purpose |
+| `src/lib/use-draft.ts` | Opening a draft from `?draft=`, and saving one |
+| `src/lib/generic/restore.ts`, `src/lib/nda-restore.ts` | Narrowing a saved draft's untrusted JSON back into each engine's values |
+| `src/lib/draft-title.ts` | What a saved draft is called in the list |
+| `src/lib/disclaimer.ts` | The draft notice, written once for four renderers |
+| `src/components/SessionProvider.tsx` | Asks `/api/auth/me` on mount; exposes `loading`/`signed-in`/`signed-out` |
+| `src/components/AuthCard.tsx` | The frame and fields the sign-in and sign-up screens share |
+| `src/components/DocumentDisclaimer.tsx` | The draft notice as it appears inside a document, and in print |
+| `src/components/SiteFooter.tsx` | The draft notice and the CC BY credit, on every screen |
 | `src/app/documents/layout.tsx` | The signed-in shell, and the client-side route guard |
 
 ### Two ways a value gets substituted
@@ -127,10 +153,14 @@ npm test
 | `test/substitutions.test.ts` | Every substitution point, filled and unfilled, in both wordings |
 | `test/standard-terms.test.ts` | Occurrence numbering, so a defined term expands exactly once |
 | `test/markdown-export.test.ts` | Export structure, markdown escaping, filenames, full-document snapshots |
-| `test/session.test.ts` | Session storage, its failure modes, and change notification |
+| `test/session.test.ts` | Registering, signing in and out, and the failures a user can actually hit |
+| `test/restore.test.ts` | Reopening a saved draft: what survives, and what falls back to defaults |
+| `test/disclaimer.test.ts` | The draft notice reaches both exports, and never displaces the attribution |
 | `test/catalog.test.ts` | The shipped `catalog.json`, including that every template path exists |
-| `test/components/` | The form, the document, the download bar, the shell, login, dashboard, and the page wiring them together |
+| `test/components/` | The forms, the documents, the download bars, the shell, landing, login, sign-up, dashboard, saved drafts, and the pages wiring them together |
+| `test/components/DraftSaving.test.tsx` | The save round trip, including a save that lands after the user has left |
 | `test/parity.test.tsx` | The on-screen document and the `.md` export agree, case by case |
+| `test/api-mock.ts` | Not a suite: stubs `fetch` per method and path, and fails loudly on a route nobody stubbed |
 
 The pure-logic suites run in Vitest's `node` environment; component suites opt
 into jsdom with a `@vitest-environment jsdom` docblock, which keeps the fast

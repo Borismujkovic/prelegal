@@ -10,6 +10,7 @@
  * "3.2.a". Markdown needs an explicit marker where HTML lets the browser count,
  * so each renderer numbers in the way its own format wants.
  */
+import { DISCLAIMER_MARKDOWN } from "../disclaimer";
 import { renderField } from "./field-values";
 import type {
   ClauseNode,
@@ -155,6 +156,9 @@ export function buildMarkdown(
     ...renderSignatures(document, values),
     "---",
     "",
+    // The draft notice, then the attribution. That order is fixed: the CC BY
+    // credit has to be the last thing, and has to survive whatever we add.
+    ...DISCLAIMER_MARKDOWN.flatMap((block) => [block, ""]),
     document.attribution,
     "",
   ].join("\n");

@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DownloadBar } from "@/components/DownloadBar";
+import type { SaveState } from "@/lib/drafts";
+import type { CoverPageValues } from "@/lib/nda-fields";
 import { buildMarkdown } from "@/lib/markdown-export";
 import { COMPLETE, EMPTY, withValues } from "../fixtures";
 
@@ -14,10 +16,36 @@ let createdBlobs: Blob[] = [];
 let revoked: string[] = [];
 let clicked: HTMLAnchorElement[] = [];
 
+/**
+ * The bar gained three save-related props in PL-7. Every test below is about
+ * downloading or completeness, so they are supplied once here rather than
+ * restated in each render.
+ */
+let saved: number;
+function Bar({
+  values,
+  saveState = { status: "idle" },
+  isSaved = false,
+}: {
+  values: CoverPageValues;
+  saveState?: SaveState;
+  isSaved?: boolean;
+}) {
+  return (
+    <DownloadBar
+      values={values}
+      onSave={() => { saved += 1; }}
+      saveState={saveState}
+      isSaved={isSaved}
+    />
+  );
+}
+
 beforeEach(() => {
   createdBlobs = [];
   revoked = [];
   clicked = [];
+  saved = 0;
 
   vi.stubGlobal("URL", {
     ...URL,
@@ -46,25 +74,25 @@ afterEach(() => {
 
 describe("DownloadBar - completeness", () => {
   it("counts the fields still outstanding", () => {
-    render(<DownloadBar values={EMPTY} />);
+    render(<Bar values={EMPTY} />);
     expect(screen.getByRole("button", { name: /8 fields still to fill/ })).toBeInTheDocument();
   });
 
   it("uses the singular for a single outstanding field", () => {
-    render(<DownloadBar values={withValues({ purpose: "" })} />);
+    render(<Bar values={withValues({ purpose: "" })} />);
     expect(screen.getByRole("button", { name: /1 field still to fill/ })).toBeInTheDocument();
     expect(screen.queryByText(/1 fields/)).not.toBeInTheDocument();
   });
 
   it("reports readiness once everything is supplied", () => {
-    render(<DownloadBar values={COMPLETE} />);
+    render(<Bar values={COMPLETE} />);
     expect(screen.getByText("Ready to download")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /still to fill/ })).not.toBeInTheDocument();
   });
 
   it("lists what is missing on request", async () => {
     const user = userEvent.setup();
-    render(<DownloadBar values={EMPTY} />);
+    render(<Bar values={EMPTY} />);
 
     const toggle = screen.getByRole("button", { name: /still to fill/ });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
@@ -79,7 +107,7 @@ describe("DownloadBar - completeness", () => {
 
   it("hides the list again", async () => {
     const user = userEvent.setup();
-    render(<DownloadBar values={EMPTY} />);
+    render(<Bar values={EMPTY} />);
 
     const toggle = screen.getByRole("button", { name: /still to fill/ });
     await user.click(toggle);
@@ -91,7 +119,7 @@ describe("DownloadBar - completeness", () => {
 describe("DownloadBar - markdown download", () => {
   it("downloads the agreement as a markdown file", async () => {
     const user = userEvent.setup();
-    render(<DownloadBar values={COMPLETE} />);
+    render(<Bar values={COMPLETE} />);
 
     await user.click(screen.getByRole("button", { name: "Download .md" }));
 
@@ -103,7 +131,7 @@ describe("DownloadBar - markdown download", () => {
 
   it("puts the rendered agreement in the blob", async () => {
     const user = userEvent.setup();
-    render(<DownloadBar values={COMPLETE} />);
+    render(<Bar values={COMPLETE} />);
 
     await user.click(screen.getByRole("button", { name: "Download .md" }));
     expect(await createdBlobs[0].text()).toBe(buildMarkdown(COMPLETE));
@@ -111,7 +139,7 @@ describe("DownloadBar - markdown download", () => {
 
   it("releases the object URL afterwards", async () => {
     const user = userEvent.setup();
-    render(<DownloadBar values={COMPLETE} />);
+    render(<Bar values={COMPLETE} />);
 
     await user.click(screen.getByRole("button", { name: "Download .md" }));
     expect(revoked).toEqual(["blob:mock/1"]);
@@ -119,7 +147,7 @@ describe("DownloadBar - markdown download", () => {
 
   it("leaves no anchor behind in the document", async () => {
     const user = userEvent.setup();
-    render(<DownloadBar values={COMPLETE} />);
+    render(<Bar values={COMPLETE} />);
 
     await user.click(screen.getByRole("button", { name: "Download .md" }));
     expect(document.querySelectorAll("a[download]")).toHaveLength(0);
@@ -127,7 +155,7 @@ describe("DownloadBar - markdown download", () => {
 
   it("downloads an incomplete agreement too, placeholders and all", async () => {
     const user = userEvent.setup();
-    render(<DownloadBar values={EMPTY} />);
+    render(<Bar values={EMPTY} />);
 
     await user.click(screen.getByRole("button", { name: "Download .md" }));
     expect(clicked[0].download).toBe("mutual-nda.md");
@@ -138,14 +166,14 @@ describe("DownloadBar - markdown download", () => {
 describe("DownloadBar - PDF", () => {
   it("goes through the browser print dialog", async () => {
     const user = userEvent.setup();
-    render(<DownloadBar values={COMPLETE} />);
+    render(<Bar values={COMPLETE} />);
 
     await user.click(screen.getByRole("button", { name: "Download PDF" }));
     expect(window.print).toHaveBeenCalledTimes(1);
   });
 
   it("offers both downloads even while fields are outstanding", () => {
-    render(<DownloadBar values={EMPTY} />);
+    render(<Bar values={EMPTY} />);
     expect(screen.getByRole("button", { name: "Download PDF" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Download .md" })).toBeEnabled();
   });
@@ -153,9 +181,58 @@ describe("DownloadBar - PDF", () => {
 
 describe("DownloadBar - buttons", () => {
   it("marks every control as a non-submitting button", () => {
-    render(<DownloadBar values={EMPTY} />);
+    render(<Bar values={EMPTY} />);
     for (const button of screen.getAllByRole("button")) {
       expect(button).toHaveAttribute("type", "button");
     }
+  });
+});
+
+describe("DownloadBar - saving", () => {
+  it("offers to save a draft that has not been saved before", () => {
+    render(<Bar values={COMPLETE} />);
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeInTheDocument();
+  });
+
+  it("changes the verb once the draft exists", () => {
+    render(<Bar values={COMPLETE} isSaved />);
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeInTheDocument();
+  });
+
+  it("asks the creator to save", async () => {
+    const user = userEvent.setup();
+    render(<Bar values={COMPLETE} />);
+
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    expect(saved).toBe(1);
+  });
+
+  it("cannot be pressed twice while a save is in flight", () => {
+    render(<Bar values={COMPLETE} saveState={{ status: "saving" }} />);
+    expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+  });
+
+  it("confirms a save", () => {
+    render(<Bar values={COMPLETE} saveState={{ status: "saved" }} />);
+    expect(screen.getByText(/Saved\./)).toBeInTheDocument();
+  });
+
+  it("announces a save that failed", () => {
+    // Losing work is worth interrupting a screen reader for; saving it is not.
+    render(
+      <Bar values={COMPLETE} saveState={{ status: "error", message: "Nope." }} />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Nope.");
+  });
+});
+
+describe("DownloadBar - the draft notice", () => {
+  it("says the document needs a lawyer before it is signed", () => {
+    // This bar had no such notice until PL-7, while the generic creator's had
+    // carried one since PL-6 — five of six documents warned you, and the
+    // most-used one did not.
+    render(<Bar values={COMPLETE} />);
+    expect(screen.getByText(/reviewed by a lawyer before signing/)).toBeInTheDocument();
   });
 });

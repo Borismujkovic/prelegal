@@ -5,16 +5,21 @@
  * Two things matter here. The header must be `print:hidden` — it is the app
  * chrome that used to live on the creator page, and if it leaks into the print
  * stylesheet it ends up in every generated PDF. And the guard must not bounce a
- * signed-in user to the login screen while the stored session is still being
- * read.
+ * signed-in user to the login screen while the session is still being checked.
+ *
+ * That second one matters more than it used to. The session used to be a
+ * synchronous read of localStorage; it is now a request to `/api/auth/me`, so
+ * the window in which the answer is unknown is a real network round trip rather
+ * than a single render.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const replace = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace, push: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => "/documents",
 }));
 
 // Lets one test hold the session in its "loading" state. Testing Library
@@ -35,13 +40,7 @@ vi.mock("@/components/SessionProvider", async (importOriginal) => {
 
 import DocumentsLayout from "@/app/documents/layout";
 import { SessionProvider } from "@/components/SessionProvider";
-
-const ADA = {
-  id: 1,
-  email: "ada@example.com",
-  display_name: "Ada Lovelace",
-  created_at: "2026-09-15 12:00:00",
-};
+import { SIGNED_OUT, signedIn, stubApi } from "../api-mock";
 
 function renderShell() {
   return render(
@@ -56,12 +55,15 @@ function renderShell() {
 beforeEach(() => {
   replace.mockClear();
   sessionOverride = null;
-  window.localStorage.clear();
+  stubApi(signedIn());
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe("the signed-in shell", () => {
   it("keeps the app chrome out of print", async () => {
-    window.localStorage.setItem("prelegal.user", JSON.stringify(ADA));
     const { container } = renderShell();
 
     await screen.findByText("the page");
@@ -69,21 +71,43 @@ describe("the signed-in shell", () => {
   });
 
   it("shows the signed-in user", async () => {
-    window.localStorage.setItem("prelegal.user", JSON.stringify(ADA));
     renderShell();
 
     expect(await screen.findByText("Ada Lovelace")).toBeInTheDocument();
   });
 
   it("renders the page for a signed-in user", async () => {
-    window.localStorage.setItem("prelegal.user", JSON.stringify(ADA));
     renderShell();
 
     expect(await screen.findByText("the page")).toBeInTheDocument();
     expect(replace).not.toHaveBeenCalled();
   });
 
+  it("offers a way to the saved drafts", async () => {
+    renderShell();
+
+    await screen.findByText("the page");
+    expect(screen.getByRole("link", { name: "Saved drafts" })).toHaveAttribute(
+      "href",
+      "/documents/history",
+    );
+  });
+
+  it("marks the page you are on", async () => {
+    renderShell();
+
+    await screen.findByText("the page");
+    expect(screen.getByRole("link", { name: "All documents" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "Saved drafts" })).not.toHaveAttribute(
+      "aria-current",
+    );
+  });
+
   it("sends a signed-out visitor to the login screen", async () => {
+    stubApi(SIGNED_OUT);
     renderShell();
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
@@ -100,14 +124,26 @@ describe("the signed-in shell", () => {
   });
 
   it("signs out back to the login screen", async () => {
-    window.localStorage.setItem("prelegal.user", JSON.stringify(ADA));
+    const fetchMock = stubApi(signedIn());
     const user = userEvent.setup();
     renderShell();
 
     await screen.findByText("the page");
     await user.click(screen.getByRole("button", { name: "Sign out" }));
 
-    expect(window.localStorage.getItem("prelegal.user")).toBeNull();
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([url]) => url === "/api/auth/logout"),
+      ).toBe(true),
+    );
     expect(replace).toHaveBeenCalledWith("/login");
+  });
+
+  it("carries the draft notice and the attribution in the footer", async () => {
+    renderShell();
+
+    await screen.findByText("the page");
+    expect(screen.getByText(/reviewed by a lawyer/)).toBeInTheDocument();
+    expect(screen.getByText(/Common Paper/)).toBeInTheDocument();
   });
 });

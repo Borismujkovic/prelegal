@@ -15,6 +15,7 @@
  * `dynamicParams = false` makes anything not listed a 404 rather than a route
  * that cannot be built.
  */
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { DocumentCreator } from "@/components/generic/DocumentCreator";
 import { DOCUMENT_REGISTRY, DRAFTABLE_DOCUMENT_IDS } from "@/lib/generated";
@@ -46,5 +47,12 @@ export default async function DocumentPage({
   const agreement = DOCUMENT_REGISTRY[documentId];
   if (!agreement) notFound();
 
-  return <DocumentCreator document={agreement} />;
+  // The creator reads `?draft=` through `useSearchParams`, which suspends on a
+  // prerendered route. Without a boundary here `next build` fails with "Missing
+  // Suspense boundary with useSearchParams".
+  return (
+    <Suspense fallback={<p className="text-sm text-brand-gray">Loading…</p>}>
+      <DocumentCreator document={agreement} />
+    </Suspense>
+  );
 }

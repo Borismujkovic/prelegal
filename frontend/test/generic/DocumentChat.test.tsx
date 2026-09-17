@@ -10,6 +10,37 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
+/**
+ * The creator gained router hooks in PL-7: it reads `?draft=` to reopen a saved
+ * draft and writes the id back after a save. Neither is what this suite is
+ * about, so both are stubbed to "no draft in the URL".
+ */
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => "/documents/pilot-agreement",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+/**
+ * The creator reads the session for one reason only — to end it when the API
+ * rejects a save. Stubbed rather than provided, so these tests stay about
+ * drafting and never call /api/auth/me.
+ *
+ * Built once, outside the hook, rather than per call. `useDraftLoad` lists
+ * `expire` among its dependencies — the real provider hands back a stable
+ * `useCallback` — so a mock that minted a fresh function on every render would
+ * change that dependency on every render and spin the effect forever.
+ */
+const session = {
+  user: null,
+  status: "signed-in" as const,
+  setUser: vi.fn(),
+  signOut: vi.fn(),
+  expire: vi.fn(),
+};
+vi.mock("@/components/SessionProvider", () => ({ useSession: () => session }));
+
 import { DocumentChat } from "@/components/generic/DocumentChat";
 import { DocumentCreator } from "@/components/generic/DocumentCreator";
 import { DOCUMENT_REGISTRY } from "@/lib/generated";

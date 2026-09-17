@@ -6,6 +6,7 @@
  * titles and boilerplate come from the generated template data, so the export
  * never restates legal text of its own.
  */
+import { DISCLAIMER_MARKDOWN } from "./disclaimer";
 import {
   COVER_PAGE_ATTRIBUTION,
   COVER_PAGE_PREAMBLE,
@@ -174,7 +175,10 @@ export function buildMarkdown(values: CoverPageValues): string {
     );
   }
 
+  // The draft notice, then the attribution. That order is fixed: the CC BY
+  // credit has to be the last thing, and has to survive whatever we add.
   blocks.push(
+    ...DISCLAIMER_MARKDOWN,
     segmentsToMarkdown(asRenderSegments(STANDARD_TERMS_ATTRIBUTION), values),
   );
 

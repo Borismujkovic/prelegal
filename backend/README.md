@@ -21,11 +21,25 @@ Requests to `/` will return 503 until the frontend has been built
 | Endpoint | What it does |
 | --- | --- |
 | `GET /api/health` | Liveness. Reports whether SQLite and the catalog are readable. |
-| `POST /api/session` | Placeholder sign-in. Finds or creates a user by email. |
+| `POST /api/auth/register` | Create an account and sign in. 409 if the email is taken. |
+| `POST /api/auth/login` | Check a password and start a session. |
+| `POST /api/auth/logout` | End this session. 204 even if there was not one. |
+| `GET /api/auth/me` | Who the cookie says you are. 401 if nobody. |
 | `GET /api/catalog` | The 11 documents from `catalog.json`. |
 | `POST /api/documents/mutual-nda/chat` | One turn of the Mutual NDA's own chat. Stateless — see below. |
 | `POST /api/documents/{document_id}/chat` | One turn for any other draftable document. 404 if the id is unknown or not yet available. |
 | `POST /api/assistant/chat` | Recommends which document the user needs. |
+| `POST /api/drafts` | Save a draft. |
+| `GET /api/drafts` | This user's saved drafts, most recently worked on first. Without the values. |
+| `GET /api/drafts/{id}` | One saved draft, with its values. |
+| `PUT /api/drafts/{id}` | Save over one. |
+| `DELETE /api/drafts/{id}` | Throw one away. |
+
+Everything under `/api/drafts` requires a session, and nothing else guards a
+resource behind one — in particular the chat endpoints do not, and PL-7
+deliberately left them alone. `GET /api/auth/me` uses the same dependency and so
+also answers 401 without a session, but it is not a guard: its whole job is to
+report whether you have one, and everyone is expected to call it either way.
 
 The literal NDA route is registered **before** the parameterised one in
 `main.py`. Starlette matches routes in registration order with no preference for
@@ -34,17 +48,83 @@ handler. `tests/test_documents_chat.py` fails if it is swapped.
 
 `/docs` has the generated OpenAPI UI.
 
-## There is no authentication
+## Authentication
 
-`POST /api/session` takes an email and hands back a user row. It asks for no
-password, issues no token, and verifies nothing — anyone can sign in as anyone.
-This is [PL-4](https://borismujkovic.atlassian.net/browse/PL-4) as specified: a
-way into the platform, not a security boundary. The route guard in the frontend
-is a convenience for the same reason.
+Through PL-6 there was none: `POST /api/session` took an email and handed back a
+user row, asking for no password and verifying nothing.
+[PL-7](https://borismujkovic.atlassian.net/browse/PL-7) replaced that module
+wholesale, as its own README said it would. `auth.py` and `routers/auth.py` are
+what replaced it.
 
-What it does buy is a proven path from browser to API to database, so the
-foundation is demonstrated rather than assumed. When real auth arrives,
-`routers/session.py` is replaced wholesale.
+Passwords are hashed with `hashlib.scrypt` and sessions are opaque tokens in a
+`sessions` table, delivered as an HttpOnly, SameSite=Lax cookie. No new
+dependency was added for any of it. bcrypt and PyJWT are the reflex answers and
+both would have been new packages — one a native wheel in the image build — to
+do what the standard library already does. The one thing a token library would
+have bought is statelessness, which is the wrong trade here: a row in `sessions`
+is what makes signing out actually end a session rather than merely asking the
+browser to forget it.
+
+A stored hash names the parameters that made it — `scrypt$16384$8$1$<salt>$<hash>`
+— and verification re-derives with *those* rather than with today's constants, so
+the cost can be raised later without invalidating every password already set.
+
+### Decisions worth knowing before changing any of it
+
+**The cost is N=2¹⁴, below OWASP's suggested 2¹⁷.** Two reasons. `hashlib.scrypt`
+refuses anything above 32 MiB with "memory limit exceeded" unless `maxmem` is
+passed explicitly, so a larger N needs that argument too; and 2¹⁷ means 128 MiB
+held per concurrent login in one small container, which makes the login endpoint
+the cheapest way to exhaust its memory. Raise it behind a real deployment with a
+request limiter in front.
+
+**An unknown email costs the same as a wrong password.** `login` always verifies,
+against `DUMMY_PASSWORD_HASH` when there is no such user, and both failures
+return the same words. Skipping the hash for an unknown email would let response
+time alone say who has an account here.
+
+**Registering does report that an email is taken.** A real disclosure, and a
+deliberate one: the alternative is to accept the signup and say nothing, which
+needs an email round trip to be usable, and there is no mail in this system.
+
+**No CSRF token, on purpose.** Every state-changing route is POST/PUT/DELETE, so
+SameSite=Lax withholds the cookie from cross-site form posts; the API is
+JSON-only, and an HTML form cannot send `application/json`; and there is no CORS
+middleware, so a credentialed cross-origin `fetch` never gets a reply. Revisit
+this if a separately-hosted frontend is ever pointed at this API.
+
+**The cookie is not `Secure` by default.** Nothing in `scripts/` or the
+Dockerfile terminates TLS, and a `Secure` cookie on an http origin is dropped
+silently — which presents as "login succeeds, then you are immediately signed
+out again". `PRELEGAL_SESSION_COOKIE_SECURE=true` turns it on.
+
+The frontend's route guard is still client-side, because a static export has no
+server in the request path. It is no longer the only thing in the way, though:
+every route that touches a user's data checks the cookie here.
+
+## Saved drafts
+
+`drafts` holds what a user has written, so they can come back to it. Three
+things about it:
+
+**`values_json` is opaque.** The Mutual NDA's Cover Page and the generic
+engine's open field map are different shapes, and this store knows about
+neither. It validates that the body is a JSON object under a size cap, writes it
+to a TEXT column, and reads it back. Nothing server-side interprets it. What
+makes that safe is the browser, which narrows it back field by field and falls
+back to defaults on anything it does not recognise — so a draft saved by an
+older build cannot break the renderer.
+
+**Ownership is part of every query.** `user_id = ?` is in the WHERE clause
+rather than checked after the row is fetched, so there is no path that reads
+someone else's draft and then decides. Acting on another user's draft answers
+**404, not 403**: a 403 confirms the id exists, which is all anyone needs to
+count other people's drafts.
+
+**They are called drafts, not documents.** `/api/documents/{document_id}/chat`
+already exists and its `document_id` is a *type* — `pilot-agreement`. Putting
+saved drafts under the same prefix would have left it meaning two things, told
+apart only by whether the segment happened to be digits.
 
 ## The chat keeps no state
 
@@ -115,10 +195,28 @@ first.
 
 ## The database is disposable
 
-`db.init_db` drops every table and recreates it on each boot, per the project's
-"created from scratch each time the container is brought up" rule. There is no
-migration story because there is nothing yet worth migrating — that is the first
-thing to add when persistence starts to matter.
+`db.init_db` drops every table — `users`, `sessions`, `drafts` — and recreates
+it on each boot, per the project's "created from scratch each time the container
+is brought up" rule. PL-7 kept it that way with accounts and saved drafts on
+top, because the ticket asked for exactly that: registering and saving last as
+long as the container does, and a restart signs everybody out and takes their
+drafts with it. There is still no migration story, and it is now the obvious
+thing to add first.
+
+The drops are ordered children-first, which is correct but not for the obvious
+reason. `connect` enables foreign keys before the script runs, and on every boot
+after the first the tables still hold the previous run's rows — the file
+outlives the process. SQLite runs an implicit `DELETE FROM` before dropping a
+table, so given the `ON DELETE CASCADE` clauses in the schema, dropping `users`
+first would actually succeed today: the delete would cascade. The ordering earns
+its keep the moment one of those clauses changes, because the same drop then
+raises "FOREIGN KEY constraint failed" inside the lifespan handler — and the app
+would fail to start on its second boot and only its second. Children-first is
+correct under either declaration, so nobody has to remember this.
+
+One user-visible consequence: a session cookie outlives the rows it names. The
+token then resolves to nothing, which is indistinguishable from a forged one,
+and both are answered with 401 and a `Set-Cookie` that clears it.
 
 Connections are opened per call rather than pooled. At this size that costs
 nothing and sidesteps the thread-affinity rules that make a shared `sqlite3`
@@ -131,6 +229,7 @@ connection awkward under FastAPI's threadpool.
 | `src/prelegal/main.py` | App factory, and serving the frontend export |
 | `src/prelegal/config.py` | Paths, overridable by `PRELEGAL_*` env vars |
 | `src/prelegal/db.py` | Connection handling and the schema |
+| `src/prelegal/auth.py` | Password hashing, session tokens, and the `get_current_user` dependency |
 | `src/prelegal/models.py` | Request and response shapes |
 | `src/prelegal/catalog.py` | Reads and caches `catalog.json` |
 | `src/prelegal/llm.py` | The Mutual NDA's assistant: prompt, and the one model call |
@@ -159,7 +258,8 @@ uv run pytest
 
 | Path | What it covers |
 | --- | --- |
-| `tests/test_session.py` | Find-or-create, case handling, validation |
+| `tests/test_auth.py` | Hashing as a unit, then registering, signing in and out over HTTP |
+| `tests/test_drafts.py` | Saving, listing, reopening and deleting — and that none of it crosses between users |
 | `tests/test_catalog.py` | The real `catalog.json`, including that every template path exists |
 | `tests/test_frontend_serving.py` | Route resolution, the 404 page, path traversal |
 | `tests/test_health.py` | Health reporting, and that the database really is recreated on boot |

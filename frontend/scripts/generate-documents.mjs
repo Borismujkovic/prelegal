@@ -115,7 +115,7 @@ export default DOCUMENT;
 `;
 }
 
-function indexModule(ids) {
+function indexModule(ids, attribution) {
   const imports = ids
     .map((id) => `import ${constantFor(id)} from "./${id}.generated";`)
     .join("\n");
@@ -125,6 +125,16 @@ function indexModule(ids) {
 import type { GeneratedDocument } from "@/lib/generic/types";
 
 ${imports}
+
+/**
+ * The CC BY 4.0 credit, from catalog.json.
+ *
+ * Each generated document already carries its own copy for the document footer.
+ * This one is for the app's chrome — the site footer — which has no document to
+ * take it from and would otherwise have to restate it by hand, which is exactly
+ * how the licence line and the catalog would drift apart.
+ */
+export const ATTRIBUTION = ${JSON.stringify(attribution)};
 
 /**
  * Every agreement the generic engine can draft, by catalog id.
@@ -196,7 +206,11 @@ async function main() {
     );
   }
 
-  await writeFile(path.join(OUTPUT_DIR, "index.ts"), indexModule(DOCUMENT_IDS), "utf8");
+  await writeFile(
+    path.join(OUTPUT_DIR, "index.ts"),
+    indexModule(DOCUMENT_IDS, catalog.attribution),
+    "utf8",
+  );
   console.log(`[generate-documents] Wrote ${DOCUMENT_IDS.length} documents.`);
 }
 

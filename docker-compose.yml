@@ -14,6 +14,12 @@ services:
       # .env is absent: the app still boots and the cover page can still be
       # filled in by hand, but the chat endpoint answers 503.
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # Marks the session cookie Secure. Off by default because nothing here
+      # terminates TLS and the app is reached over plain http://localhost — a
+      # Secure cookie on an http origin is dropped silently, which presents as
+      # "login succeeds, then you are immediately signed out again". Turn it on
+      # when there is real TLS in front.
+      PRELEGAL_SESSION_COOKIE_SECURE: ${PRELEGAL_SESSION_COOKIE_SECURE:-false}
     # The database lives in the container's own filesystem, not a volume, so it
     # is genuinely recreated from scratch every time the stack comes up.
     restart: unless-stopped

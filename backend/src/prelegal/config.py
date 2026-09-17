@@ -36,6 +36,15 @@ class Settings(BaseSettings):
     #: runs, which is why main.py mounts it conditionally.
     static_dir: Path = REPO_ROOT / "frontend" / "out"
 
+    #: Whether the session cookie is marked `Secure`.
+    #:
+    #: Off by default because nothing in scripts/ or the Dockerfile terminates
+    #: TLS — the app is served over plain http, and a `Secure` cookie on an http
+    #: origin is silently dropped by the browser, which would present as "login
+    #: succeeds but you are immediately signed out again". Set
+    #: PRELEGAL_SESSION_COOKIE_SECURE=true when there is real TLS in front.
+    session_cookie_secure: bool = False
+
     #: Authenticates the Mutual NDA chat against OpenRouter.
     #:
     #: Aliased past the PRELEGAL_ prefix on purpose: .env, .env.example and

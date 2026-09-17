@@ -9,22 +9,40 @@ closely, camelCase included, so a Cover Page value crosses the wire in the shape
 the browser already holds it in and nothing has to be translated on either side.
 """
 
+import json
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
-class SignInRequest(BaseModel):
-    """What the fake login screen sends.
-
-    No password field, by design — PL-4 specifies no authentication.
-    """
+class RegisterRequest(BaseModel):
+    """Signing up. The display name is optional and defaults from the email."""
 
     email: EmailStr
+    password: str = Field(min_length=8, max_length=200)
     display_name: str | None = Field(default=None, max_length=120)
 
 
+class LoginRequest(BaseModel):
+    """Signing back in.
+
+    The password is only bounded, not length-checked the way registration's is:
+    a password that is too short to have been registered should be answered with
+    the same 401 as a wrong one, not a 422 that says it could never have been
+    right.
+    """
+
+    email: EmailStr
+    password: str = Field(min_length=1, max_length=200)
+
+
 class User(BaseModel):
+    """A user as the rest of the app sees them. Never carries the password hash.
+
+    Every query that builds one names its columns rather than selecting `*`, so
+    a column added to the table later cannot arrive here by accident.
+    """
+
     id: int
     email: str
     display_name: str
@@ -259,3 +277,113 @@ class AssistantTurn(BaseModel):
     reply: str
     recommendedDocumentId: str | None = None  # noqa: N815
     status: Literal["available", "not_yet_available", "no_recommendation"]
+
+
+# --------------------------------------------------------------------------- #
+# Saved drafts (PL-7)
+#
+# A draft is stored as whatever JSON object the browser was holding, because the
+# two drafting engines hold different things: the Mutual NDA's Cover Page has
+# named fields and two tagged unions, the generic engine has an open `fields`
+# map. Modelling both here would mean this store knowing about both engines, and
+# growing a branch every time a document type is added — the exact coupling the
+# generic engine exists to avoid.
+#
+# So `values` is validated as "a JSON object, under a size cap" and nothing
+# more. What makes that safe is that nothing server-side ever interprets it: it
+# goes into a TEXT column and comes back out again. The browser that reads it
+# narrows it back into a real type field by field, falling back to defaults on
+# anything it does not recognise, which is where a saved draft written by an
+# older version of the app is made harmless.
+# --------------------------------------------------------------------------- #
+
+#: Roughly twice the largest thing the generic engine can produce (60 fields at
+#: 4000 characters each), so a real draft never comes close and a payload built
+#: to fill the disk never lands.
+MAX_DRAFT_VALUES_BYTES = 512_000
+
+
+def _within_size_limit(values: dict[str, object]) -> dict[str, object]:
+    size = len(json.dumps(values).encode("utf-8"))
+    if size > MAX_DRAFT_VALUES_BYTES:
+        raise ValueError(
+            f"values is {size} bytes of JSON; the limit is {MAX_DRAFT_VALUES_BYTES}."
+        )
+    return values
+
+
+def _non_blank_title(title: str) -> str:
+    """Trim, and refuse a title that was only whitespace.
+
+    `min_length` alone would let a single space through, and a saved draft whose
+    name renders as nothing is one the user cannot pick out of a list.
+    """
+    stripped = title.strip()
+    if not stripped:
+        raise ValueError("title must not be blank.")
+    return stripped
+
+
+class DraftCreate(BaseModel):
+    """Saving a draft for the first time.
+
+    `document_id` is checked against the catalog in the router rather than here:
+    knowing it needs a file read, and a validator that touches the filesystem
+    turns every malformed request into a disk access.
+    """
+
+    document_id: str = Field(min_length=1, max_length=100)
+    title: str = Field(min_length=1, max_length=200)
+    values: dict[str, object] = Field(default_factory=dict)
+
+    @field_validator("values")
+    @classmethod
+    def _values_fit(cls, values: dict[str, object]) -> dict[str, object]:
+        return _within_size_limit(values)
+
+    @field_validator("title")
+    @classmethod
+    def _title_is_real(cls, title: str) -> str:
+        return _non_blank_title(title)
+
+
+class DraftUpdate(BaseModel):
+    """Saving over a draft that already exists.
+
+    No `document_id`: a saved draft does not change which agreement it is, and
+    accepting one would invite a Pilot Agreement's values to be relabelled as an
+    NDA's, which nothing downstream could make sense of.
+    """
+
+    title: str = Field(min_length=1, max_length=200)
+    values: dict[str, object] = Field(default_factory=dict)
+
+    @field_validator("values")
+    @classmethod
+    def _values_fit(cls, values: dict[str, object]) -> dict[str, object]:
+        return _within_size_limit(values)
+
+    @field_validator("title")
+    @classmethod
+    def _title_is_real(cls, title: str) -> str:
+        return _non_blank_title(title)
+
+
+class DraftSummary(BaseModel):
+    """One row of the saved-drafts list, without the values.
+
+    The list exists to be scanned, and a user with twenty saved drafts would
+    otherwise be sent every field of all twenty to render twenty titles.
+    """
+
+    id: int
+    document_id: str
+    title: str
+    created_at: str
+    updated_at: str
+
+
+class Draft(DraftSummary):
+    """A saved draft, with the values needed to carry on drafting it."""
+
+    values: dict[str, object]

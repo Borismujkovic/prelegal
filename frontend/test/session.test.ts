@@ -2,134 +2,161 @@
 /**
  * The session module.
  *
- * Note what is *not* tested, because it does not exist: no password, no token,
- * no expiry. These tests pin the storage contract and the failure modes, since
- * a corrupt or unreadable localStorage must present as "signed out" rather than
- * crashing the app on boot.
+ * Note what is no longer here, because it no longer exists: nothing is written
+ * to localStorage, and there is no stored value to parse, corrupt or guard
+ * against. The session token lives in an HttpOnly cookie this code cannot read,
+ * which is the point — so what is left to test is the requests, and that the
+ * failures a user can actually hit come back as sentences rather than as status
+ * codes.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  clearStoredUser,
-  readStoredUser,
+  fetchCurrentUser,
+  register,
   signIn,
-  storeUser,
-  type User,
+  signOut,
+  UnauthorizedError,
 } from "@/lib/session";
-
-const ADA: User = {
-  id: 1,
-  email: "ada@example.com",
-  display_name: "Ada Lovelace",
-  created_at: "2026-09-15 12:00:00",
-};
-
-beforeEach(() => {
-  window.localStorage.clear();
-});
+import { ADA, bodyOf, stubApi } from "./api-mock";
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
-describe("stored session", () => {
-  it("round-trips a user", () => {
-    storeUser(ADA);
-    expect(readStoredUser()).toEqual(ADA);
-  });
+describe("registering", () => {
+  it("posts the credentials and returns the new user", async () => {
+    const fetchMock = stubApi({ "POST /api/auth/register": { json: ADA } });
 
-  it("reads as signed out when nothing is stored", () => {
-    expect(readStoredUser()).toBeNull();
-  });
+    await expect(register("ada@example.com", "hunter2hunter2")).resolves.toEqual(ADA);
 
-  it("clears", () => {
-    storeUser(ADA);
-    clearStoredUser();
-    expect(readStoredUser()).toBeNull();
-  });
-
-  it("treats unparseable storage as signed out", () => {
-    window.localStorage.setItem("prelegal.user", "{not json");
-    expect(readStoredUser()).toBeNull();
-  });
-
-  it("rejects a stored value of the wrong shape", () => {
-    window.localStorage.setItem("prelegal.user", JSON.stringify({ id: "1" }));
-    expect(readStoredUser()).toBeNull();
-  });
-
-  it("survives localStorage throwing", () => {
-    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-      throw new Error("blocked");
-    });
-    expect(readStoredUser()).toBeNull();
-  });
-});
-
-describe("signIn", () => {
-  it("posts the email and returns the user", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ADA,
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    await expect(signIn("ada@example.com")).resolves.toEqual(ADA);
-
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("/api/session");
-    expect(init.method).toBe("POST");
-    expect(JSON.parse(init.body)).toEqual({
+    const [, init] = fetchMock.mock.calls[0];
+    expect(bodyOf(init)).toEqual({
       email: "ada@example.com",
+      password: "hunter2hunter2",
       display_name: null,
     });
   });
 
-  it("explains a rejected email", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 422 }));
-    await expect(signIn("nope")).rejects.toThrow(/does not look like an email/);
+  it("sends a display name when one was given", async () => {
+    const fetchMock = stubApi({ "POST /api/auth/register": { json: ADA } });
+
+    await register("ada@example.com", "hunter2hunter2", "  Ada  ");
+
+    expect(bodyOf(fetchMock.mock.calls[0][1])).toMatchObject({ display_name: "Ada" });
   });
 
-  it("explains an unreachable backend", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
-    await expect(signIn("ada@example.com")).rejects.toThrow(/Could not reach the server/);
+  it("says plainly when the email is already taken", async () => {
+    stubApi({ "POST /api/auth/register": { status: 409 } });
+
+    await expect(register("ada@example.com", "hunter2hunter2")).rejects.toThrow(
+      /already has an account/,
+    );
+  });
+
+  it("explains a password the server refused", async () => {
+    stubApi({
+      "POST /api/auth/register": {
+        status: 422,
+        json: { detail: [{ loc: ["body", "password"], msg: "too short" }] },
+      },
+    });
+
+    await expect(register("ada@example.com", "short")).rejects.toThrow(
+      /at least 8 characters/,
+    );
+  });
+
+  it("explains an email the server refused", async () => {
+    stubApi({
+      "POST /api/auth/register": {
+        status: 422,
+        json: { detail: [{ loc: ["body", "email"], msg: "bad" }] },
+      },
+    });
+
+    await expect(register("nope", "hunter2hunter2")).rejects.toThrow(
+      /does not look like an email/,
+    );
   });
 });
 
-describe("change notification", () => {
-  it("announces a sign-in to the current tab", () => {
-    // The DOM "storage" event only fires in other tabs, so without this the tab
-    // that signed in would never re-render.
-    const listener = vi.fn();
-    window.addEventListener("prelegal:session-changed", listener);
+describe("signing in", () => {
+  it("posts the credentials and returns the user", async () => {
+    const fetchMock = stubApi({ "POST /api/auth/login": { json: ADA } });
 
-    storeUser(ADA);
-
-    expect(listener).toHaveBeenCalledTimes(1);
-    window.removeEventListener("prelegal:session-changed", listener);
-  });
-
-  it("announces a sign-out to the current tab", () => {
-    const listener = vi.fn();
-    window.addEventListener("prelegal:session-changed", listener);
-
-    clearStoredUser();
-
-    expect(listener).toHaveBeenCalledTimes(1);
-    window.removeEventListener("prelegal:session-changed", listener);
-  });
-
-  it("still announces when the write itself fails", () => {
-    // Storage blocked in private mode must not leave the UI stuck on the old
-    // session; the in-memory view still needs to update.
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-      throw new Error("blocked");
+    await expect(signIn("ada@example.com", "hunter2hunter2")).resolves.toEqual(ADA);
+    expect(bodyOf(fetchMock.mock.calls[0][1])).toEqual({
+      email: "ada@example.com",
+      password: "hunter2hunter2",
     });
-    const listener = vi.fn();
-    window.addEventListener("prelegal:session-changed", listener);
+  });
 
-    storeUser(ADA);
+  it("sends the cookie along", async () => {
+    // The whole design rests on this. A request that forgets it is a request
+    // that is never authenticated, and the symptom would be a mystery.
+    const fetchMock = stubApi({ "POST /api/auth/login": { json: ADA } });
 
-    expect(listener).toHaveBeenCalledTimes(1);
-    window.removeEventListener("prelegal:session-changed", listener);
+    await signIn("ada@example.com", "hunter2hunter2");
+
+    expect(fetchMock.mock.calls[0][1].credentials).toBe("same-origin");
+  });
+
+  it("reports a wrong password without saying which half was wrong", async () => {
+    stubApi({ "POST /api/auth/login": { status: 401 } });
+
+    await expect(signIn("ada@example.com", "wrong")).rejects.toThrow(
+      /do not match an account/,
+    );
+  });
+
+  it("explains an unreachable backend", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
+
+    await expect(signIn("ada@example.com", "hunter2hunter2")).rejects.toThrow(
+      /Could not reach the server/,
+    );
+  });
+});
+
+describe("who is signed in", () => {
+  it("returns the user when the cookie is good", async () => {
+    stubApi({ "GET /api/auth/me": { json: ADA } });
+
+    await expect(fetchCurrentUser()).resolves.toEqual(ADA);
+  });
+
+  it("reads a 401 as nobody rather than as an error", async () => {
+    // Being signed out is the ordinary answer to this question, not a failure.
+    stubApi({ "GET /api/auth/me": { status: 401 } });
+
+    await expect(fetchCurrentUser()).resolves.toBeNull();
+  });
+});
+
+describe("signing out", () => {
+  it("tells the server to end the session", async () => {
+    const fetchMock = stubApi({ "POST /api/auth/logout": { status: 204 } });
+
+    await signOut();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("never throws, even when the server cannot be reached", async () => {
+    // A user who pressed "sign out" must not stay signed in because the network
+    // was down.
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
+
+    await expect(signOut()).resolves.toBeUndefined();
+  });
+});
+
+describe("UnauthorizedError", () => {
+  it("is identifiable, so a caller can end the session instead of showing an error", () => {
+    const error = new UnauthorizedError();
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error.name).toBe("UnauthorizedError");
   });
 });
