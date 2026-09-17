@@ -3,25 +3,23 @@
  * The dashboard.
  *
  * The distinction it has to get right: a document that can be drafted is a
- * link, one that cannot is not. Rendering a dead link for the ten documents
+ * link, one that cannot is not. Rendering a dead link for the five documents
  * without a cover page would promise something the product cannot do.
+ *
+ * The Common Paper attribution is no longer asserted here — it moved to the
+ * shell's footer, and `DocumentsLayout.test.tsx` pins it there.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => "/documents",
 }));
 
 import DocumentsPage from "@/app/documents/page";
 import { SessionProvider } from "@/components/SessionProvider";
-
-const ADA = {
-  id: 1,
-  email: "ada@example.com",
-  display_name: "Ada Lovelace",
-  created_at: "2026-09-15 12:00:00",
-};
+import { signedIn, stubApi } from "../api-mock";
 
 const CATALOG = {
   version: 1,
@@ -61,11 +59,11 @@ function renderDashboard() {
 }
 
 beforeEach(() => {
-  window.localStorage.setItem("prelegal.user", JSON.stringify(ADA));
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue({ ok: true, json: async () => CATALOG }),
-  );
+  stubApi({ ...signedIn(), "GET /api/catalog": { json: CATALOG } });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe("the documents dashboard", () => {
@@ -97,14 +95,8 @@ describe("the documents dashboard", () => {
     expect(await screen.findByText(/Welcome, Ada Lovelace/)).toBeInTheDocument();
   });
 
-  it("keeps the Common Paper attribution on screen", async () => {
-    renderDashboard();
-
-    expect(await screen.findByText(/Common Paper/)).toBeInTheDocument();
-  });
-
   it("reports a catalog it cannot load", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+    stubApi({ ...signedIn(), "GET /api/catalog": { status: 500 } });
     renderDashboard();
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/Could not load/);

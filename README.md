@@ -12,9 +12,11 @@ This project is under active development. The target completion date is
 Until then, the project structure, APIs, and documentation are expected to
 change. See #1.
 
-> **There is no authentication.** The sign-in screen is a placeholder: any email
-> address gets you in, no password is asked for, and nothing is verified. Do not
-> put real confidential information into this yet.
+> **Your account does not survive a restart.** Sign-in is real — a password, a
+> hashed credential, a revocable session — but the database is recreated from
+> scratch every time the container boots, so accounts and saved drafts are
+> deliberately temporary. Nothing here has been through a security review, and
+> what it produces is a draft for a lawyer to look at, not advice.
 
 ## Running it
 
@@ -92,10 +94,11 @@ survives, and nothing should be built on the assumption that it does.
 
 | | |
 | --- | --- |
-| Placeholder sign-in | Creates a user row from an email. No password, no security. |
+| Accounts | Sign up and sign back in with a password. Sessions are server-side and revocable; the cookie carrying one is not readable by scripts. |
 | Document dashboard | All 11 agreements from `catalog.json` |
 | "Which one do I need?" | Describe your situation and an assistant recommends an agreement — or says plainly that Prelegal does not draft what you asked for |
 | Six draftable agreements | Draft by chatting with an AI, or type the fields in by hand; download as PDF or Markdown |
+| Saved drafts | Save what you are working on and come back to it. Only for as long as the container is up — see the note above. |
 
 Draftable today: **Mutual NDA**, **AI Addendum**, **Business Associate
 Agreement**, **Pilot Agreement**, **Service Level Agreement** and **Design

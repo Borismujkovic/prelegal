@@ -16,6 +16,7 @@
  * types can become markup.
  */
 import { Fragment } from "react";
+import { DocumentDisclaimer } from "@/components/DocumentDisclaimer";
 import { renderField } from "@/lib/generic/field-values";
 import type {
   ClauseNode,
@@ -246,7 +247,11 @@ export function GenericDocument({
 
       <Signatures document={agreement} values={values} />
 
-      <footer className="mt-10 border-t border-slate-200 pt-4 text-xs text-brand-gray">
+      {/* Before the attribution, never instead of it: the CC BY credit has to
+          travel with anything generated from a Common Paper template. */}
+      <DocumentDisclaimer />
+
+      <footer className="mt-6 border-t border-slate-200 pt-4 text-xs text-brand-gray">
         {agreement.attribution}
       </footer>
     </article>

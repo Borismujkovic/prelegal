@@ -31,15 +31,16 @@ preview (Ctrl/Cmd-P) and check, **at Letter and again at A4**:
 | 1.7 | Margins look even and nothing runs into them | `@page { margin: 18mm 16mm }` |
 | 1.8 | Body text is comfortably readable (target ~10.5pt) | `article { font-size: 10.5pt }` |
 | 1.9 | The CC BY 4.0 attribution appears **twice** — after the cover page and after the Standard Terms | Licence requirement; see `../templates/README.md` |
+| 1.10 | The "Prelegal notice — not legal advice" box appears in the PDF, immediately **before** the final attribution and not in place of it | The whole point of putting it in the document rather than the toolbar is that it survives printing. It must also still read as an aside — sans-serif and boxed — rather than as a clause someone agreed to |
 
-### 1.10 Attribution links on paper
+### 1.12 Attribution links on paper
 
 Print rules strip link colour and underline, so the two "CC BY 4.0" links render
 as plain text and **the URL is not printed**. Confirm a reader of the paper copy
 can still identify the licence from the text alone. If not, the print stylesheet
 needs to print the href.
 
-### 1.11 Outstanding values on paper
+### 1.13 Outstanding values on paper
 
 With a deliberately **incomplete** cover page, print again. On screen an unfilled
 value is highlighted amber; in print that highlight is removed on purpose, so the
@@ -69,6 +70,25 @@ the on-screen document and the downloaded `.md` both render it as literal text:
 - A multi-line **Notice address** — confirm it stays on one table row in the `.md`
 - A very long Purpose (a full paragraph) — confirm clause 1 still reads correctly
   and the PDF paginates around it
+
+## 3a. Accounts and saved drafts
+
+These need the real backend, so run the container (`scripts/start-*`) rather than
+`npm run dev` — the session is an HttpOnly cookie set by FastAPI, and there is no
+way to fake one from the browser.
+
+| # | Check | Why it matters |
+| --- | --- | --- |
+| 3a.1 | Sign up, close the tab, reopen the app — you are still signed in | The cookie is the session; if this fails it is not being persisted |
+| 3a.2 | In devtools, confirm `document.cookie` does **not** show `prelegal_session` | It is HttpOnly. If it shows up, the flag has been lost and a cross-site script could take the session |
+| 3a.3 | Sign out, then press Back — the dashboard must not come back usable | The guard should bounce you to `/login` |
+| 3a.4 | Sign in wrong twice: once with a real email and a bad password, once with an email that does not exist. The message and the delay must be indistinguishable | Either one differing tells an attacker which emails have accounts |
+| 3a.5 | Save a draft, reload the page — the values are still there and the URL carries `?draft=` | The save writes the id into the URL so a reload reopens it |
+| 3a.6 | Save, edit a field, and confirm "Saved" stops being shown | Otherwise it claims work is safe when it is not |
+| 3a.7 | Open the draft from **Saved drafts**, change something, press Save changes, and confirm the list still shows **one** draft | A second row would mean a save created instead of updated |
+| 3a.8 | Edit `?draft=` by hand to another number, and to a draft of a different agreement | Both should say so plainly rather than rendering a blank or wrong document |
+| 3a.9 | Restart the container, then reload with the old cookie still in the browser | Everything is wiped by design: you should land signed-out cleanly, not on an error |
+| 3a.10 | Sign in as a second user and confirm the first user's drafts are not listed or reachable | The one thing in this feature that would be a real breach |
 
 ## 4. Browsers
 

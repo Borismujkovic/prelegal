@@ -6,6 +6,7 @@
  * chrome under `@media print` so the browser's "Save as PDF" produces the
  * document on its own.
  */
+import { DocumentDisclaimer } from "@/components/DocumentDisclaimer";
 import {
   COVER_PAGE_ATTRIBUTION,
   COVER_PAGE_PREAMBLE,
@@ -319,6 +320,10 @@ export function NdaDocument({ values }: { values: CoverPageValues }) {
           ))}
         </ol>
       </section>
+
+      {/* Before the attribution, never instead of it: the CC BY credit has to
+          travel with anything generated from a Common Paper template. */}
+      <DocumentDisclaimer />
 
       <Attribution segments={STANDARD_TERMS_ATTRIBUTION} values={values} />
     </article>

@@ -1,35 +1,34 @@
 "use client";
 
 /**
- * Makes the stored user available to the tree, and keeps the "still checking"
- * state explicit.
+ * Makes the signed-in user available to the tree, and keeps the "still
+ * checking" state explicit.
  *
- * localStorage is an external store, so it is read through
- * `useSyncExternalStore` rather than copied into state inside an effect. That
- * buys three things: no cascading re-render on mount, a signed-out tab that
- * notices when another tab signs in, and a `hydrated` flag that is honest about
- * the one render where the answer is not yet known.
+ * This used to read localStorage through `useSyncExternalStore`, with a
+ * `hydrated` flag so the first client render agreed with the prerendered HTML.
+ * The session now lives in an HttpOnly cookie that no script can read, so the
+ * answer has to come from the server — which, as it happens, removes the
+ * hydration problem rather than complicating it. The prerender and the first
+ * client render both report "loading", because at that point neither of them
+ * knows, and that is simply true.
  *
- * `hydrated` matters because the app is a static export. The prerendered HTML
- * is built with nobody signed in, so the first client render must agree with it
- * or hydration mismatches. Reporting "loading" for that render is what stops
- * the shell flashing signed-out chrome and the route guard bouncing a
- * signed-in user to the login screen.
+ * `status` is the thing to branch on, and it has three values for a reason: a
+ * route guard that treats "loading" as "signed out" bounces every signed-in
+ * user to the login screen for one render.
  */
 
 import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
-  useSyncExternalStore,
+  useState,
   type ReactNode,
 } from "react";
 import {
-  SESSION_CHANGED_EVENT,
-  clearStoredUser,
-  readStoredUserFrom,
-  storeUser,
+  fetchCurrentUser,
+  signOut as endSession,
   type User,
 } from "@/lib/session";
 
@@ -38,71 +37,65 @@ type SessionStatus = "loading" | "signed-in" | "signed-out";
 type SessionContextValue = {
   user: User | null;
   status: SessionStatus;
+  /** Adopt the user a sign-in or sign-up just returned. */
   setUser: (user: User) => void;
-  signOut: () => void;
+  signOut: () => Promise<void>;
+  /**
+   * Drop the session because the server rejected it.
+   *
+   * Any request can come back 401 — the database is recreated on every boot, so
+   * a perfectly ordinary restart invalidates every session in existence. This
+   * is how a component that hit one tells the rest of the app, instead of
+   * leaving a signed-out user looking at a page that thinks otherwise.
+   */
+  expire: () => void;
 };
 
 const SessionContext = createContext<SessionContextValue | null>(null);
 
-/** Notified by `storage` (other tabs) and our own event (this tab). */
-function subscribeToStoredUser(onChange: () => void): () => void {
-  window.addEventListener("storage", onChange);
-  window.addEventListener(SESSION_CHANGED_EVENT, onChange);
-  return () => {
-    window.removeEventListener("storage", onChange);
-    window.removeEventListener(SESSION_CHANGED_EVENT, onChange);
-  };
-}
-
-/** The raw string, so React can compare snapshots by value. */
-function getStoredUserSnapshot(): string | null {
-  try {
-    return window.localStorage.getItem("prelegal.user");
-  } catch {
-    return null;
-  }
-}
-
-/** Nobody is signed in in the prerendered HTML. */
-function getStoredUserServerSnapshot(): string | null {
-  return null;
-}
-
-const subscribeToNothing = () => () => {};
-
 export function SessionProvider({ children }: { children: ReactNode }) {
-  // False for the prerender and the hydrating render, true from then on.
-  const hydrated = useSyncExternalStore(
-    subscribeToNothing,
-    () => true,
-    () => false,
-  );
+  const [user, setUserState] = useState<User | null>(null);
+  const [status, setStatus] = useState<SessionStatus>("loading");
 
-  const raw = useSyncExternalStore(
-    subscribeToStoredUser,
-    getStoredUserSnapshot,
-    getStoredUserServerSnapshot,
-  );
+  useEffect(() => {
+    const controller = new AbortController();
 
-  const user = useMemo(() => readStoredUserFrom(raw), [raw]);
+    fetchCurrentUser(controller.signal)
+      .then((current) => {
+        setUserState(current);
+        setStatus(current ? "signed-in" : "signed-out");
+      })
+      .catch((cause: unknown) => {
+        if (cause instanceof Error && cause.name === "AbortError") return;
+        // The backend being unreachable is not a signed-in state, and there is
+        // nothing behind the guard that would work without it.
+        setUserState(null);
+        setStatus("signed-out");
+      });
+
+    return () => controller.abort();
+  }, []);
 
   const setUser = useCallback((next: User) => {
-    storeUser(next);
+    setUserState(next);
+    setStatus("signed-in");
   }, []);
 
-  const signOut = useCallback(() => {
-    clearStoredUser();
+  const expire = useCallback(() => {
+    setUserState(null);
+    setStatus("signed-out");
   }, []);
 
-  const status: SessionStatus = !hydrated
-    ? "loading"
-    : user
-      ? "signed-in"
-      : "signed-out";
+  const signOut = useCallback(async () => {
+    // Clear locally first. `endSession` never throws, but the user pressed a
+    // button and should not watch a spinner to be let out.
+    expire();
+    await endSession();
+  }, [expire]);
 
   const value = useMemo(
-    () => ({ user, status, setUser, signOut }),
-    [user, status, setUser, signOut],
+    () => ({ user, status, setUser, signOut, expire }),
+    [user, status, setUser, signOut, expire],
   );
 
   return <SessionContext value={value}>{children}</SessionContext>;

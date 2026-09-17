@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 /**
- * The fake login screen.
+ * The sign-in screen.
  *
- * The first test is the important one: the screen has to *say* it is not real
- * authentication. Everything else here is ordinary form behaviour.
+ * The first test is the one that changed: this screen used to have to *say* it
+ * was not real authentication, and now it has to ask for a password. The rest
+ * is ordinary form behaviour.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -16,13 +17,7 @@ vi.mock("next/navigation", () => ({
 
 import LoginPage from "@/app/login/page";
 import { SessionProvider } from "@/components/SessionProvider";
-
-const ADA = {
-  id: 1,
-  email: "ada@example.com",
-  display_name: "Ada",
-  created_at: "2026-09-15 12:00:00",
-};
+import { ADA, bodyOf, SIGNED_OUT, signedIn, stubApi } from "../api-mock";
 
 function renderLogin() {
   return render(
@@ -34,23 +29,26 @@ function renderLogin() {
 
 beforeEach(() => {
   replace.mockClear();
-  window.localStorage.clear();
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue({ ok: true, json: async () => ADA }),
-  );
+  stubApi({ ...SIGNED_OUT, "POST /api/auth/login": { json: ADA } });
 });
 
-describe("the login screen", () => {
-  it("says plainly that it is not real authentication", () => {
-    renderLogin();
-    expect(screen.getByText(/Placeholder sign-in/i)).toBeInTheDocument();
-    expect(screen.getByText(/no authentication yet/i)).toBeInTheDocument();
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("the sign-in screen", () => {
+  it("asks for a password", () => {
+    const { container } = renderLogin();
+
+    expect(container.querySelector('input[type="password"]')).not.toBeNull();
   });
 
-  it("asks for no password", () => {
-    const { container } = renderLogin();
-    expect(container.querySelector('input[type="password"]')).toBeNull();
+  it("no longer claims to be a placeholder", () => {
+    // It said so for as long as it was true. PL-7 made it untrue.
+    renderLogin();
+
+    expect(screen.queryByText(/Placeholder sign-in/i)).toBeNull();
+    expect(screen.queryByText(/no authentication yet/i)).toBeNull();
   });
 
   it("signs in and goes to the documents dashboard", async () => {
@@ -58,50 +56,57 @@ describe("the login screen", () => {
     renderLogin();
 
     await user.type(screen.getByLabelText("Email"), "ada@example.com");
-    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.type(screen.getByLabelText("Password"), "hunter2hunter2");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/documents"));
   });
 
-  it("stores the user so a reload stays signed in", async () => {
+  it("sends what was typed", async () => {
+    const fetchMock = stubApi({
+      ...SIGNED_OUT,
+      "POST /api/auth/login": { json: ADA },
+    });
+    const user = userEvent.setup();
+    renderLogin();
+
+    await user.type(screen.getByLabelText("Email"), "  ada@example.com  ");
+    await user.type(screen.getByLabelText("Password"), "hunter2hunter2");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalled());
+    const login = fetchMock.mock.calls.find(([url]) => url === "/api/auth/login");
+    expect(bodyOf(login![1])).toEqual({
+      email: "ada@example.com",
+      password: "hunter2hunter2",
+    });
+  });
+
+  it("shows why a sign-in failed, and lets you try again", async () => {
+    stubApi({ ...SIGNED_OUT, "POST /api/auth/login": { status: 401 } });
     const user = userEvent.setup();
     renderLogin();
 
     await user.type(screen.getByLabelText("Email"), "ada@example.com");
-    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.type(screen.getByLabelText("Password"), "wrong");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
 
-    await waitFor(() =>
-      expect(window.localStorage.getItem("prelegal.user")).toContain("ada@example.com"),
+    expect(await screen.findByRole("alert")).toHaveTextContent(/do not match/);
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("offers a way to create an account", () => {
+    renderLogin();
+
+    expect(screen.getByRole("link", { name: /Create an account/ })).toHaveAttribute(
+      "href",
+      "/signup",
     );
   });
 
-  it("shows the reason a sign-in failed and stays put", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
-    const user = userEvent.setup();
-    renderLogin();
-
-    await user.type(screen.getByLabelText("Email"), "ada@example.com");
-    await user.click(screen.getByRole("button", { name: "Continue" }));
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(/Could not reach the server/);
-    expect(replace).not.toHaveBeenCalledWith("/documents");
-  });
-
-  it("lets the user retry after a failure", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
-    const user = userEvent.setup();
-    renderLogin();
-
-    await user.type(screen.getByLabelText("Email"), "ada@example.com");
-    await user.click(screen.getByRole("button", { name: "Continue" }));
-    await screen.findByRole("alert");
-
-    // The button must not be stuck in its submitting state.
-    expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
-  });
-
   it("skips the screen for someone already signed in", async () => {
-    window.localStorage.setItem("prelegal.user", JSON.stringify(ADA));
+    stubApi({ ...signedIn(), "POST /api/auth/login": { json: ADA } });
     renderLogin();
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/documents"));

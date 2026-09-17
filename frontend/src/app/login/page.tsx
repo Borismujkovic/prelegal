@@ -1,18 +1,23 @@
 "use client";
 
 /**
- * The fake login.
+ * Signing in.
  *
- * No password, no verification, no security — type any email and you are that
- * user. The screen says so, because a login form that looks real and is not is
- * worse than an obviously placeholder one.
+ * This screen used to carry a notice saying it was not real authentication.
+ * The notice is gone because the statement is no longer true: there is a
+ * password now, it is checked against a stored scrypt hash, and the session is
+ * a token the server can revoke.
  *
- * What it does prove is the whole stack: the email goes to FastAPI, which
- * creates a row in SQLite and hands it back.
+ * The form renders while the session is still being checked rather than showing
+ * a spinner first. Someone arriving here is overwhelmingly likely to be signed
+ * out, and making them wait on a round trip to be told so is the wrong default;
+ * the redirect for the rarer case fires as soon as the answer arrives.
  */
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
+import { AuthCard, FIELD, FormError, LABEL, SUBMIT } from "@/components/AuthCard";
 import { useSession } from "@/components/SessionProvider";
 import { signIn } from "@/lib/session";
 
@@ -20,14 +25,12 @@ export default function LoginPage() {
   const router = useRouter();
   const { status, setUser } = useSession();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Already signed in? Skip the screen.
   useEffect(() => {
-    if (status === "signed-in") {
-      router.replace("/documents");
-    }
+    if (status === "signed-in") router.replace("/documents");
   }, [status, router]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -35,7 +38,7 @@ export default function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      setUser(await signIn(email.trim()));
+      setUser(await signIn(email.trim(), password));
       router.replace("/documents");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Something went wrong.");
@@ -44,55 +47,59 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-full items-center justify-center px-6 py-12">
-      <div className="w-full max-w-sm">
-        <p className="text-sm font-semibold tracking-[0.18em] text-brand-blue uppercase">
-          Prelegal
-        </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-navy">
-          Sign in
-        </h1>
-
-        <p className="mt-4 rounded-md border border-brand-yellow/40 bg-brand-yellow/10 px-3 py-2 text-xs text-slate-700">
-          <strong className="font-semibold">Placeholder sign-in.</strong> There is
-          no authentication yet — any email gets you in, and no password is
-          asked for or stored.
-        </p>
-
-        <form onSubmit={handleSubmit} className="mt-6">
-          <label
-            htmlFor="email"
-            className="block text-sm font-medium text-slate-700"
+    <AuthCard
+      title="Sign in"
+      subtitle="Pick up where you left off, or start a new agreement."
+      footer={
+        <>
+          New here?{" "}
+          <Link
+            href="/signup"
+            className="font-medium text-brand-purple underline underline-offset-4"
           >
-            Email
+            Create an account
+          </Link>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} noValidate>
+        <label htmlFor="email" className={LABEL}>
+          Email
+        </label>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          required
+          autoComplete="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="you@company.com"
+          className={FIELD}
+        />
+
+        <div className="mt-4">
+          <label htmlFor="password" className={LABEL}>
+            Password
           </label>
           <input
-            id="email"
-            name="email"
-            type="email"
+            id="password"
+            name="password"
+            type="password"
             required
-            autoComplete="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="you@company.com"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:border-brand-blue focus-visible:ring-2 focus-visible:ring-brand-blue focus-visible:outline-none"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            className={FIELD}
           />
+        </div>
 
-          {error && (
-            <p role="alert" className="mt-3 text-sm text-red-700">
-              {error}
-            </p>
-          )}
+        <FormError message={error} />
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="mt-5 w-full rounded-md bg-brand-purple px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 focus-visible:ring-2 focus-visible:ring-brand-purple focus-visible:ring-offset-2 focus-visible:outline-none disabled:opacity-60"
-          >
-            {submitting ? "Signing in…" : "Continue"}
-          </button>
-        </form>
-      </div>
-    </div>
+        <button type="submit" disabled={submitting} className={SUBMIT}>
+          {submitting ? "Signing in…" : "Sign in"}
+        </button>
+      </form>
+    </AuthCard>
   );
 }

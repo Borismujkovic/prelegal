@@ -1,7 +1,13 @@
 /**
- * Exists only to title the tab. The page itself is a Client Component, and
- * those cannot export `metadata`.
+ * Titles the tab, and supplies the Suspense boundary the page needs.
+ *
+ * Two things the page cannot do for itself. It is a Client Component, and those
+ * cannot export `metadata`; and it reads `?draft=` through `useSearchParams`,
+ * which suspends on a prerendered route — `next build` fails with "Missing
+ * Suspense boundary with useSearchParams" if nothing above it catches that.
+ * Here is the nearest thing above it that is rendered on the server.
  */
+import { Suspense } from "react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -13,5 +19,9 @@ export const metadata: Metadata = {
 export default function MutualNdaLayout({
   children,
 }: LayoutProps<"/documents/mutual-nda">) {
-  return children;
+  return (
+    <Suspense fallback={<p className="text-sm text-slate-500">Loading…</p>}>
+      {children}
+    </Suspense>
+  );
 }

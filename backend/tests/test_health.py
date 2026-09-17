@@ -18,33 +18,60 @@ def test_health_reports_database_and_catalog(client: TestClient) -> None:
 
 
 def test_the_schema_is_created_on_boot(client: TestClient, database_path: Path) -> None:
-    """The lifespan handler runs init_db, so the users table exists."""
+    """The lifespan handler runs init_db, so every table exists."""
     with db.connect(database_path) as connection:
         tables = {
             row["name"]
             for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
 
-    assert "users" in tables
+    assert {"users", "sessions", "drafts"} <= tables
 
 
 def test_the_database_is_recreated_from_scratch_on_every_boot(
     database_path: Path,
 ) -> None:
-    """CLAUDE.md requires a throwaway database. Prove users do not survive a
-    restart, so nobody builds on the assumption that they do."""
+    """CLAUDE.md requires a throwaway database, and PL-7 keeps it that way even
+    though there are now accounts. Prove users do not survive a restart, so
+    nobody builds on the assumption that they do."""
+    credentials = {"email": "ada@example.com", "password": "correct-horse-battery"}
+
     with TestClient(create_app()) as first_boot:
-        first_boot.post("/api/session", json={"email": "ada@example.com"})
+        first_boot.post("/api/auth/register", json=credentials)
         assert first_boot.get("/api/health").json()["status"] == "ok"
 
     with TestClient(create_app()) as second_boot:
-        # Same email, fresh database: a brand new row with id 1 again.
-        user = second_boot.post("/api/session", json={"email": "ada@example.com"}).json()
-        assert user["id"] == 1
+        # Same email, fresh database: registering again succeeds rather than
+        # colliding, and hands back a brand new row with id 1.
+        response = second_boot.post("/api/auth/register", json=credentials)
+        assert response.status_code == 201
+        assert response.json()["id"] == 1
 
     with db.connect(database_path) as connection:
         count = connection.execute("SELECT COUNT(*) AS n FROM users").fetchone()["n"]
     assert count == 1
+
+
+def test_a_session_does_not_survive_a_restart(database_path: Path) -> None:
+    """The cookie outlives the rows it names, so it has to read as signed out.
+
+    This is the one user-visible consequence of the disposable database, and it
+    is deliberate: a token the server cannot resolve is indistinguishable from
+    one that was never valid, and both are answered the same way.
+    """
+    with TestClient(create_app()) as first_boot:
+        first_boot.post(
+            "/api/auth/register",
+            json={"email": "ada@example.com", "password": "correct-horse-battery"},
+        )
+        token = first_boot.cookies["prelegal_session"]
+        assert first_boot.get("/api/auth/me").status_code == 200
+
+    with TestClient(create_app()) as second_boot:
+        second_boot.cookies.set("prelegal_session", token)
+        response = second_boot.get("/api/auth/me")
+
+    assert response.status_code == 401
 
 
 def test_health_reports_a_broken_database(
